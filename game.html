@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
+    <title>🎮 Math Adventure - Game Matematika Seru</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background: linear-gradient(145deg, #4a00e0 0%, #8e2de2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .container {
+            max-width: 950px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 48px 48px 32px 32px;
+            padding: 28px 24px;
+            box-shadow: 0 25px 50px -8px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* HEADER LEBIH KOMPAK */
+        .header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .header h1 {
+            color: #6c5ce7;
+            font-size: clamp(2rem, 8vw, 2.8rem);
+            font-weight: 700;
+            margin-bottom: 6px;
+            text-shadow: 2px 2px 0 rgba(99, 69, 237, 0.15);
+            letter-spacing: -1px;
+            line-height: 1.2;
+        }
+
+        .header p {
+            color: #5a5f7a;
+            font-size: clamp(1rem, 4vw, 1.2rem);
+            font-weight: 500;
+        }
+
+        /* MODE CARD - GRID RESPONSIF */
+        .pilih-mode h2 {
+            text-align: center;
+            color: #2d3436;
+            font-size: clamp(1.4rem, 6vw, 1.8rem);
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .mode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .mode-card {
+            background: white;
+            border: 3px solid #e9ecf0;
+            border-radius: 24px;
+            padding: 18px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 6px 0 #dfe6e9;
+        }
+
+        .mode-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 0 #b2bec3;
+            border-color: #a29bfe;
+        }
+
+        .mode-card.aktif {
+            background: #6c5ce7;
+            border-color: #4b3bb3;
+            box-shadow: 0 6px 0 #4b3bb3;
+        }
+
+        .mode-card.aktif .mode-judul,
+        .mode-card.aktif .mode-desk {
+            color: white;
+        }
+
+        .mode-icon {
+            font-size: 2.4rem;
+            margin-bottom: 8px;
+        }
+
+        .mode-judul {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #2d3436;
+            margin-bottom: 4px;
+        }
+
+        .mode-desk {
+            font-size: 0.8rem;
+            color: #636e72;
+            line-height: 1.3;
+        }
+
+        /* TOMBOL MULAI - MENARIK */
+        .btn-mulai {
+            display: block;
+            width: 100%;
+            max-width: 350px;
+            margin: 10px auto 0;
+            padding: 16px 20px;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: white;
+            background: linear-gradient(145deg, #00cec9, #00b894);
+            border: none;
+            border-radius: 100px;
+            cursor: pointer;
+            box-shadow: 0 10px 0 #008b74;
+            transition: all 0.1s;
+            font-family: 'Fredoka', sans-serif;
+            letter-spacing: 2px;
+        }
+
+        .btn-mulai:active {
+            transform: translateY(7px);
+            box-shadow: 0 3px 0 #008b74;
+        }
+
+        /* GAME AREA - LAYOUT FLEKSIBEL */
+        .game-area {
+            display: none;
+        }
+
+        .game-area.aktif {
+            display: block;
+            animation: slideUp 0.4s;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0.6; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* INFO BAR - PADDING LEBIH RINGAN */
+        .info-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            background: #6c5ce7;
+            color: white;
+            padding: 14px 20px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            gap: 10px;
+        }
+
+        .timer {
+            background: #e17055;
+            padding: 6px 18px;
+            border-radius: 40px;
+            font-size: 1.1rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* PROGRESS BAR TIPIS */
+        .progress-container {
+            background: #dfe6e9;
+            height: 10px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00b894, #00cec9);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* SOAL BOX - LEBIH RINGKAS */
+        .soal-box {
+            background: #f9fbfd;
+            border: 4px solid #ffffff;
+            border-radius: 28px;
+            padding: 28px 20px;
+            text-align: center;
+            margin-bottom: 25px;
+            box-shadow: inset 0 -4px 0 #d1d9e6, 0 8px 20px rgba(108, 92, 231, 0.1);
+        }
+
+        .soal-teks {
+            font-size: clamp(2.2rem, 8vw, 3rem);
+            font-weight: 800;
+            color: #2d3436;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .soal-emoji {
+            font-size: 3.5rem;
+            line-height: 1.2;
+        }
+
+        .soal-petunjuk {
+            font-size: 1.1rem;
+            color: #636e72;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+
+        /* PUZZLE AREA - GRID 3x3 RAPI */
+        .puzzle-target {
+            background: #fff9e6;
+            border: 3px dashed #fdcb6e;
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+
+        .puzzle-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            max-width: 330px;
+            margin: 0 auto 20px;
+        }
+
+        .puzzle-blok {
+            aspect-ratio: 1 / 1;
+            background: white;
+            border: 4px solid #cbd5e0;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.1s;
+            box-shadow: 0 6px 0 #a0aec0;
+            color: #1e293b;
+        }
+
+        .puzzle-blok.dipilih {
+            background: #a29bfe;
+            color: white;
+            border-color: #6c5ce7;
+            box-shadow: 0 6px 0 #5649c0;
+            transform: scale(0.98);
+        }
+
+        .puzzle-blok.benar {
+            background: #00b894;
+            color: white;
+            border-color: #008b74;
+            animation: pop 0.2s;
+        }
+
+        /* JAWABAN AREA - GRID RESPONSIF */
+        .jawaban-area {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn-jawab {
+            padding: 18px 10px;
+            font-size: 2rem;
+            font-weight: 700;
+            background: white;
+            border: 4px solid #d4dae1;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.1s;
+            box-shadow: 0 6px 0 #b8c2cc;
+            font-family: 'Fredoka', sans-serif;
+            color: #2d3436;
+        }
+
+        .btn-jawab:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #b8c2cc;
+        }
+
+        .btn-jawab.benar {
+            background: #00b894;
+            color: white;
+            border-color: #00897b;
+            box-shadow: 0 4px 0 #006b5f;
+        }
+
+        /* KEYPAD GRID */
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .btn-angka {
+            padding: 16px 5px;
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: #edf2f7;
+            border: 3px solid #cbd5e0;
+            border-radius: 18px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #a0aec0;
+            transition: 0.05s;
+        }
+
+        .btn-angka:active {
+            transform: translateY(5px);
+            box-shadow: 0 1px 0 #a0aec0;
+        }
+
+        .input-display {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #6c5ce7;
+            min-height: 80px;
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 24px;
+            border: 4px solid #cbd5e0;
+            margin-bottom: 20px;
+            word-break: break-all;
+        }
+
+        /* TOMBOL AKSI MINIMALIS */
+        .btn-aksi {
+            padding: 14px 25px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: 0.1s;
+            margin: 5px;
+            box-shadow: 0 5px 0 rgba(0,0,0,0.15);
+        }
+
+        .btn-cek {
+            background: #0984e3;
+            color: white;
+        }
+
+        .btn-hapus {
+            background: #b2bec3;
+            color: #2d3436;
+        }
+
+        .btn-aksi:active {
+            transform: translateY(5px);
+            box-shadow: 0 1px 0 rgba(0,0,0,0.15);
+        }
+
+        /* FEEDBACK */
+        .feedback {
+            padding: 16px;
+            border-radius: 18px;
+            margin: 15px 0;
+            font-size: 1.3rem;
+            font-weight: 600;
+            display: none;
+            text-align: center;
+        }
+
+        .feedback.aktif {
+            display: block;
+        }
+
+        .btn-lanjut {
+            display: none;
+            width: 100%;
+            padding: 18px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2d3436;
+            background: #fdcb6e;
+            border: none;
+            border-radius: 60px;
+            cursor: pointer;
+            box-shadow: 0 7px 0 #e6b422;
+            margin-top: 10px;
+        }
+
+        .btn-lanjut:active {
+            transform: translateY(7px);
+            box-shadow: 0 2px 0 #e6b422;
+        }
+
+        /* HASIL AKHIR */
+        .hasil-box {
+            display: none;
+            text-align: center;
+            padding: 20px 15px;
+        }
+
+        .hasil-box.aktif {
+            display: block;
+        }
+
+        .hasil-icon {
+            font-size: 5rem;
+        }
+
+        .hasil-teks {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #6c5ce7;
+        }
+
+        .hasil-skor {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: #00b894;
+            text-shadow: 2px 2px 0 #c8f7e5;
+        }
+
+        .hasil-bintang {
+            font-size: 2.5rem;
+            letter-spacing: 8px;
+        }
+
+        .btn-ulang {
+            padding: 16px 45px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            background: #6c5ce7;
+            border: none;
+            border-radius: 60px;
+            box-shadow: 0 8px 0 #4b3bb3;
+            margin-top: 20px;
+        }
+
+        .btn-ulang:active {
+            transform: translateY(8px);
+            box-shadow: 0 2px 0 #4b3bb3;
+        }
+
+        /* UTILITY */
+        @media (max-width: 550px) {
+            .container { padding: 20px 16px; }
+            .info-bar { flex-direction: column; align-items: stretch; text-align: center; }
+            .mode-grid { grid-template-columns: 1fr; }
+            .jawaban-area { grid-template-columns: 1fr 1fr; }
+            .keypad { grid-template-columns: repeat(3, 1fr); }
+            .puzzle-grid { max-width: 280px; }
+            .btn-jawab { font-size: 1.8rem; padding: 12px; }
+        }
+
+        @media (max-width: 380px) {
+            .jawaban-area { grid-template-columns: 1fr; }
+            .btn-jawab { font-size: 2rem; }
+        }
+
+        /* animasi */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <h1>🎮 Math Adventure</h1>
+            <p>pilih mode favorit, tantang dirimu!</p>
+        </div>
+
+        <!-- MENU MODE -->
+        <div class="pilih-mode" id="menuMode">
+            <h2>⚡ PILIH MODE ⚡</h2>
+            <div class="mode-grid">
+                <div class="mode-card" onclick="pilihMode(1)">
+                    <div class="mode-icon">🧩</div>
+                    <div class="mode-judul">Puzzle Blok</div>
+                    <div class="mode-desk">pilih 2-3 angka ➕ target</div>
+                </div>
+                <div class="mode-card" onclick="pilihMode(2)">
+                    <div class="mode-icon">🎈</div>
+                    <div class="mode-judul">Hitung Benda</div>
+                    <div class="mode-desk">hitung jumlah emoji</div>
+                </div>
+                <div class="mode-card" onclick="pilihMode(3)">
+                    <div class="mode-icon">➕➖</div>
+                    <div class="mode-judul">Tebak Operasi</div>
+                    <div class="mode-desk">+ , − , × , ÷</div>
+                </div>
+                <div class="mode-card" onclick="pilihMode(4)">
+                    <div class="mode-icon">🔢</div>
+                    <div class="mode-judul">Lanjutkan Pola</div>
+                    <div class="mode-desk">tebak angka berikutnya</div>
+                </div>
+                <div class="mode-card" onclick="pilihMode(5)">
+                    <div class="mode-icon">⚖️</div>
+                    <div class="mode-judul">Timbangan</div>
+                    <div class="mode-desk">cari angka yang hilang</div>
+                </div>
+            </div>
+            <button class="btn-mulai" onclick="mulaiMain()">🚀 MAIN SEKARANG</button>
+        </div>
+
+        <!-- AREA PERMAINAN -->
+        <div class="game-area" id="gameArea">
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+
+            <div class="info-bar">
+                <span id="namaMode">🧩 Puzzle</span>
+                <span><span id="nomorSoal">1</span>/5</span>
+                <span>✨ <span id="skor">0</span></span>
+                <span class="timer">⏱️ <span id="timer">30</span></span>
+            </div>
+
+            <!-- MODE 1 : PUZZLE -->
+            <div id="puzzleArea" style="display: none;">
+                <div class="puzzle-target">
+                    🎯 TARGET <span id="targetSum">10</span> <br>
+                    <small style="color:#5f6b7a;">pilih 2 atau 3 blok</small>
+                </div>
+                <div class="puzzle-grid" id="puzzleGrid"></div>
+                <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn-aksi btn-cek" onclick="cekPuzzle()">✓ CEK</button>
+                    <button class="btn-aksi btn-hapus" onclick="resetPuzzle()">↺ ULANG</button>
+                </div>
+            </div>
+
+            <!-- MODE 2-5 : SOAL BOX -->
+            <div class="soal-box" id="soalBox">
+                <div class="soal-emoji" id="soalEmoji"></div>
+                <div class="soal-teks" id="soalTeks"></div>
+                <div class="soal-petunjuk" id="soalPetunjuk"></div>
+            </div>
+
+            <!-- JAWABAN MODE 2,3,4 -->
+            <div class="jawaban-area" id="jawabanArea"></div>
+
+            <!-- INPUT MODE 5 -->
+            <div class="input-khusus" id="inputKhusus" style="display: none;">
+                <div class="input-display" id="inputDisplay">_</div>
+                <div class="keypad" id="keypad"></div>
+                <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px;">
+                    <button class="btn-aksi btn-cek" onclick="cekJawabanInput()">✓ CEK</button>
+                    <button class="btn-aksi btn-hapus" onclick="hapusInput()">⌫ HAPUS</button>
+                </div>
+            </div>
+
+            <!-- FEEDBACK & LANJUT -->
+            <div class="feedback" id="feedback"></div>
+            <button class="btn-lanjut" id="btnLanjut" onclick="soalBerikutnya()">➡️ LANJUT</button>
+        </div>
+
+        <!-- HASIL AKHIR -->
+        <div class="hasil-box" id="hasilBox">
+            <div class="hasil-icon">🏆</div>
+            <div class="hasil-teks">SELESAI!</div>
+            <div class="hasil-skor" id="skorAkhir">0/100</div>
+            <div class="hasil-bintang" id="bintangAkhir">⭐⭐⭐</div>
+            <button class="btn-ulang" onclick="location.reload()">🔄 MAIN LAGI</button>
+        </div>
+    </div>
+
+    <script>
+        // STATE
+        let modePilihan = 0;
+        let soalSekarang = 0;
+        let skor = 0;
+        let waktu = 30;
+        let timerInterval;
+        let inputJawaban = "";
+        let blokTerpilih = [];
+
+        const bankSoal = {
+            1: [
+                {target: 10, angka: [2,5,3,7,4,6,1,8,9], benar: [1,4,5]},
+                {target: 12, angka: [3,9,4,8,5,7,2,6,1], benar: [0,2,5]},
+                {target: 8, angka: [1,3,5,2,6,4,7,9,8], benar: [0,1,5]},
+                {target: 15, angka: [6,9,7,8,5,4,3,2,1], benar: [0,1]},
+                {target: 9, angka: [2,4,3,5,6,1,7,8,9], benar: [0,2,5]}
+            ],
+            2: [
+                {emoji: "🍎🍎🍎", jawab: 3, pilihan: [2,3,4,5], petunjuk: "🍎 Ada berapa apel?"},
+                {emoji: "🐱🐱🐱🐱🐱", jawab: 5, pilihan: [4,5,6,7], petunjuk: "🐱 Ada berapa kucing?"},
+                {emoji: "⭐⭐⭐⭐⭐⭐⭐", jawab: 7, pilihan: [6,7,8,9], petunjuk: "⭐ Ada berapa bintang?"},
+                {emoji: "🎈🎈🎈🎈", jawab: 4, pilihan: [3,4,5,6], petunjuk: "🎈 Ada berapa balon?"},
+                {emoji: "🚗🚗🚗🚗🚗🚗", jawab: 6, pilihan: [5,6,7,8], petunjuk: "🚗 Ada berapa mobil?"}
+            ],
+            3: [
+                {soal: "5 ? 3 = 8", jawab: "+", pilihan: ["+","-","×","÷"], petunjuk: "➕ ➖ ✖️ ➗ ?"},
+                {soal: "9 ? 4 = 5", jawab: "-", pilihan: ["+","-","×","÷"], petunjuk: "➕ ➖ ✖️ ➗ ?"},
+                {soal: "6 ? 2 = 12", jawab: "×", pilihan: ["+","-","×","÷"], petunjuk: "➕ ➖ ✖️ ➗ ?"},
+                {soal: "8 ? 2 = 4", jawab: "÷", pilihan: ["+","-","×","÷"], petunjuk: "➕ ➖ ✖️ ➗ ?"},
+                {soal: "7 ? 3 = 21", jawab: "×", pilihan: ["+","-","×","÷"], petunjuk: "➕ ➖ ✖️ ➗ ?"}
+            ],
+            4: [
+                {soal: "2, 4, 6, 8, ?", jawab: 10, pilihan: [9,10,12,14], petunjuk: "pola +2 ➡️"},
+                {soal: "5, 10, 15, 20, ?", jawab: 25, pilihan: [22,24,25,30], petunjuk: "pola +5 ➡️"},
+                {soal: "3, 6, 9, 12, ?", jawab: 15, pilihan: [14,15,16,18], petunjuk: "pola +3 ➡️"},
+                {soal: "1, 3, 5, 7, ?", jawab: 9, pilihan: [8,9,10,11], petunjuk: "bilangan ganjil ➡️"},
+                {soal: "10, 20, 30, 40, ?", jawab: 50, pilihan: [45,50,55,60], petunjuk: "pola +10 ➡️"}
+            ],
+            5: [
+                {soal: "5 + 3 = 6 + ?", jawab: 2, petunjuk: "⚖️ timbangan seimbang"},
+                {soal: "7 + 4 = 5 + ?", jawab: 6, petunjuk: "⚖️ timbangan seimbang"},
+                {soal: "9 + 2 = 4 + ?", jawab: 7, petunjuk: "⚖️ timbangan seimbang"},
+                {soal: "6 + 6 = 8 + ?", jawab: 4, petunjuk: "⚖️ timbangan seimbang"},
+                {soal: "8 + 5 = 9 + ?", jawab: 4, petunjuk: "⚖️ timbangan seimbang"}
+            ]
+        };
+
+        const namaMode = ["", "🧩 Puzzle Blok", "🎈 Hitung Benda", "➕➖ Operasi", "🔢 Pola Bilangan", "⚖️ Timbangan"];
+
+        function pilihMode(mode) {
+            modePilihan = mode;
+            document.querySelectorAll('.mode-card').forEach((card, idx) => {
+                card.classList.toggle('aktif', idx + 1 === mode);
+            });
+        }
+
+        function mulaiMain() {
+            if (!modePilihan) { alert("🎮 Pilih mode dulu yaa!"); return; }
+            document.getElementById('menuMode').style.display = 'none';
+            document.getElementById('gameArea').classList.add('aktif');
+            document.getElementById('namaMode').textContent = namaMode[modePilihan];
+            soalSekarang = 0;
+            skor = 0;
+            updateSkor();
+            muatSoal();
+        }
+
+        function muatSoal() {
+            if (soalSekarang >= 5) return tampilHasil();
+
+            clearInterval(timerInterval);
+            inputJawaban = "";
+            blokTerpilih = [];
+            document.getElementById('inputDisplay').textContent = "_";
+            document.getElementById('feedback').classList.remove('aktif');
+            document.getElementById('btnLanjut').classList.remove('aktif');
+            document.getElementById('progressBar').style.width = `${(soalSekarang/5)*100}%`;
+
+            const soal = bankSoal[modePilihan][soalSekarang];
+            document.getElementById('nomorSoal').textContent = soalSekarang + 1;
+
+            if (modePilihan === 1) {
+                document.getElementById('puzzleArea').style.display = 'block';
+                document.getElementById('soalBox').style.display = 'none';
+                document.getElementById('jawabanArea').style.display = 'none';
+                document.getElementById('inputKhusus').style.display = 'none';
+                document.getElementById('targetSum').textContent = soal.target;
+                buatPuzzleGrid(soal.angka);
+            } else {
+                document.getElementById('puzzleArea').style.display = 'none';
+                document.getElementById('soalBox').style.display = 'block';
+                document.getElementById('soalEmoji').style.display = modePilihan === 2 ? 'block' : 'none';
+                document.getElementById('soalTeks').style.display = modePilihan !== 2 ? 'block' : 'none';
+                
+                if (modePilihan === 2) {
+                    document.getElementById('soalEmoji').textContent = soal.emoji;
+                    document.getElementById('soalTeks').style.display = 'none';
+                } else {
+                    document.getElementById('soalTeks').textContent = soal.soal;
+                }
+                
+                document.getElementById('soalPetunjuk').textContent = soal.petunjuk;
+
+                if (modePilihan === 5) {
+                    document.getElementById('jawabanArea').style.display = 'none';
+                    document.getElementById('inputKhusus').style.display = 'block';
+                    buatKeypad();
+                } else {
+                    document.getElementById('jawabanArea').style.display = 'grid';
+                    document.getElementById('inputKhusus').style.display = 'none';
+                    buatTombolJawaban(soal.pilihan, soal.jawab);
+                }
+            }
+            mulaiTimer();
+        }
+
+        function buatPuzzleGrid(angka) {
+            const grid = document.getElementById('puzzleGrid');
+            grid.innerHTML = '';
+            angka.forEach((num, idx) => {
+                const blok = document.createElement('div');
+                blok.className = 'puzzle-blok';
+                blok.textContent = num;
+                blok.onclick = () => pilihBlok(blok, idx, num);
+                grid.appendChild(blok);
+            });
+        }
+
+        function pilihBlok(el, idx, num) {
+            if (el.classList.contains('benar')) return;
+            const sudah = blokTerpilih.find(b => b.idx === idx);
+            if (sudah) {
+                blokTerpilih = blokTerpilih.filter(b => b.idx !== idx);
+                el.classList.remove('dipilih');
+            } else {
+                if (blokTerpilih.length >= 3) {
+                    tampilFeedback(false, "Maksimal 3 blok! ⚠️");
+                    return;
+                }
+                blokTerpilih.push({idx, num});
+                el.classList.add('dipilih');
+            }
+        }
+
+        function cekPuzzle() {
+            if (blokTerpilih.length < 2) {
+                tampilFeedback(false, "Pilih minimal 2 blok! 🧩");
+                return;
+            }
+            const total = blokTerpilih.reduce((a,b) => a + b.num, 0);
+            const target = bankSoal[1][soalSekarang].target;
+            if (total === target) {
+                document.querySelectorAll('.puzzle-blok').forEach((el, idx) => {
+                    if (blokTerpilih.find(b => b.idx === idx)) el.classList.add('benar');
+                });
+                tampilFeedback(true, `BENAR! ${blokTerpilih.map(b=>b.num).join('+')}=${total} 🎉 +20`);
+                skor += 20;
+                updateSkor();
+                clearInterval(timerInterval);
+                document.getElementById('btnLanjut').classList.add('aktif');
+            } else {
+                tampilFeedback(false, `SALAH! jumlah = ${total}, target ${target} ❌`);
+            }
+        }
+
+        function resetPuzzle() {
+            blokTerpilih = [];
+            document.querySelectorAll('.puzzle-blok').forEach(el => {
+                el.classList.remove('dipilih', 'benar');
+            });
+        }
+
+        function buatTombolJawaban(pilihan, jawabanBenar) {
+            const area = document.getElementById('jawabanArea');
+            area.innerHTML = '';
+            [...pilihan].sort(() => Math.random() - 0.5).forEach(pil => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-jawab';
+                btn.textContent = pil;
+                btn.onclick = () => cekJawaban(pil, jawabanBenar, btn);
+                area.appendChild(btn);
+            });
+        }
+
+        function cekJawaban(pil, benar, tombol) {
+            clearInterval(timerInterval);
+            disableTombol(true);
+            if (pil == benar) {
+                if (tombol) tombol.classList.add('benar');
+                tampilFeedback(true, `✅ BENAR! +20 poin`);
+                skor += 20;
+            } else {
+                tampilFeedback(false, `❌ SALAH! jawaban: ${benar}`);
+            }
+            updateSkor();
+            document.getElementById('btnLanjut').classList.add('aktif');
+        }
+
+        function buatKeypad() {
+            const keypad = document.getElementById('keypad');
+            keypad.innerHTML = '';
+            for (let i = 0; i <= 9; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'btn-angka';
+                btn.textContent = i;
+                btn.onclick = () => tambahAngka(i);
+                keypad.appendChild(btn);
+            }
+        }
+
+        function tambahAngka(angka) {
+            if (inputJawaban.length < 2) {
+                inputJawaban += angka;
+                document.getElementById('inputDisplay').textContent = inputJawaban;
+            }
+        }
+
+        function hapusInput() {
+            inputJawaban = "";
+            document.getElementById('inputDisplay').textContent = "_";
+        }
+
+        function cekJawabanInput() {
+            const jawab = parseInt(inputJawaban);
+            const benar = bankSoal[5][soalSekarang].jawab;
+            cekJawaban(jawab, benar, null);
+        }
+
+        function mulaiTimer() {
+            waktu = [45,30,30,30,40][modePilihan-1] || 30;
+            updateTimer();
+            timerInterval = setInterval(() => {
+                waktu--;
+                updateTimer();
+                if (waktu <= 0) {
+                    clearInterval(timerInterval);
+                    tampilFeedback(false, "⏰ WAKTU HABIS!");
+                    disableTombol(true);
+                    document.getElementById('btnLanjut').classList.add('aktif');
+                }
+            }, 1000);
+        }
+
+        function updateTimer() { document.getElementById('timer').textContent = waktu; }
+        function updateSkor() { document.getElementById('skor').textContent = skor; }
+        function tampilFeedback(benar, pesan) {
+            const fb = document.getElementById('feedback');
+            fb.textContent = pesan;
+            fb.className = `feedback aktif ${benar ? 'benar' : 'salah'}`;
+            fb.style.background = benar ? '#d4edda' : '#f8d7da';
+            fb.style.color = benar ? '#155724' : '#721c24';
+        }
+
+        function disableTombol(state = true) {
+            document.querySelectorAll('.btn-jawab, .btn-angka, .puzzle-blok').forEach(el => {
+                el.style.pointerEvents = state ? 'none' : 'auto';
+            });
+        }
+
+        function soalBerikutnya() {
+            soalSekarang++;
+            muatSoal();
+        }
+
+        function tampilHasil() {
+            document.getElementById('gameArea').classList.remove('aktif');
+            document.getElementById('hasilBox').classList.add('aktif');
+            document.getElementById('skorAkhir').textContent = `${skor}/100`;
+            let bintang = "⭐";
+            if (skor >= 40) bintang = "⭐⭐";
+            if (skor >= 60) bintang = "⭐⭐⭐";
+            if (skor >= 80) bintang = "⭐⭐⭐⭐";
+            if (skor >= 100) bintang = "⭐⭐⭐⭐⭐";
+            document.getElementById('bintangAkhir').textContent = bintang;
+        }
+    </script>
+</body>
+</html>
