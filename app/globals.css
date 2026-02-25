@@ -150,4 +150,187 @@
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
   }
+  /* ===== THEME VARIABLES ===== */
+:root {
+  /* Dark theme (default) */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #121218;
+  --bg-card: rgba(18,18,24,0.8);
+  --bg-card-hover: rgba(28,28,36,0.9);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(203,213,225,0.8);
+  --text-muted: rgba(160,165,215,0.6);
+  --border-color: rgba(255,255,255,0.08);
+  --border-hover: rgba(255,255,255,0.12);
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --border-hover: #cbd5e1;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --danger: #dc2626;
+  --success: #059669;
+  --warning: #d97706;
+}
+
+/* Transisi smooth saat ganti theme */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.1s ease;
+}
+/* ===== THEME VARIABLES ===== */
+:root {
+  /* Dark theme (default) */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #121218;
+  --bg-card: rgba(18,18,24,0.8);
+  --bg-card-hover: rgba(28,28,36,0.9);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(203,213,225,0.8);
+  --text-muted: rgba(160,165,215,0.6);
+  --border-color: rgba(255,255,255,0.08);
+  --border-hover: rgba(255,255,255,0.12);
+  --accent: #8b5cf6;
+  --accent-hover: #7c3aed;
+  --danger: #ef4444;
+  --success: #10b981;
+  --warning: #f59e0b;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --border-hover: #cbd5e1;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --danger: #dc2626;
+  --success: #059669;
+  --warning: #d97706;
+}
+
+/* ===== APPLY KE BODY ===== */
+body {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  transition: background-color 0.3s ease, color 0.2s ease;
+}
+
+/* ===== OVERRIDE STYLE BAWAAN ===== */
+body, 
+div, 
+section, 
+article, 
+main, 
+header, 
+footer {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* ===== CARD STYLES ===== */
+.fd-card,
+.glass-effect,
+[class*="card"],
+[class*="Card"] {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  backdrop-filter: blur(10px);
+}
+
+/* ===== TEXT COLORS ===== */
+h1, h2, h3, h4, h5, h6,
+p, span, a, button {
+  color: inherit;
+}
+
+.text-muted,
+[class*="text-muted"] {
+  color: var(--text-muted) !important;
+}
+
+.text-secondary,
+[class*="text-secondary"] {
+  color: var(--text-secondary) !important;
+}
+
+/* ===== BORDER COLORS ===== */
+.border,
+[class*="border"] {
+  border-color: var(--border-color) !important;
+}
+
+hr, 
+.divider {
+  border-color: var(--border-color) !important;
+}
+
+/* ===== BACKGROUND COLORS ===== */
+.bg-secondary,
+[class*="bg-secondary"] {
+  background-color: var(--bg-secondary) !important;
+}
+
+.bg-card,
+[class*="bg-card"] {
+  background-color: var(--bg-card) !important;
+}
+
+/* ===== INPUT STYLES ===== */
+input, textarea, select {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent) !important;
+  outline: none;
+}
+
+/* ===== BUTTON STYLES ===== */
+button:not(.nav-btn-primary):not(.btn-primary) {
+  background-color: var(--bg-secondary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+button:hover:not(.nav-btn-primary):not(.btn-primary) {
+  background-color: var(--bg-card-hover);
+  border-color: var(--border-hover);
+}
+
+/* ===== LINK STYLES ===== */
+a {
+  color: var(--accent);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* ===== TRANSISI SMOOTH ===== */
+* {
+  transition: background-color 0.2s ease, 
+              border-color 0.2s ease, 
+              color 0.1s ease,
+              box-shadow 0.2s ease;
+}
 }

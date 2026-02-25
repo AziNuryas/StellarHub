@@ -33,21 +33,31 @@ export async function middleware(request: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession()
   const path = request.nextUrl.pathname
 
-  // ✅ LANDING PAGE - BEBAS, JANGAN PERNAH DI REDIRECT!
+  // ✅ LANDING PAGE — always allow
   if (path === '/') {
     return response
   }
 
-  // ✅ Halaman auth - redirect ke feed kalo udah login
-  if (path === '/login' || path === '/register' || path === '/forgot-password') {
-    if (session) {
-      return NextResponse.redirect(new URL('/feed', request.url))
-    }
+  // ✅ AUTH PAGES — always allow, even if logged in
+  // Reason: login page intentionally shows "continue or switch account" UI
+  // We must NOT redirect here — that would bypass the user's choice
+  if (
+    path === '/login' ||
+    path === '/register' ||
+    path === '/forgot-password' ||
+    path === '/reset-password' ||
+    path.startsWith('/auth/')
+  ) {
     return response
   }
 
-  // ✅ Halaman protected - redirect ke landing kalo belum login
-  const protectedPaths = ['/feed', '/profile', '/settings', '/post', '/dashboard', '/community', '/nasa', '/explore']
+  // ✅ PROTECTED PAGES — redirect to landing if not logged in
+  const protectedPaths = [
+    '/feed', '/profile', '/settings', '/post',
+    '/dashboard', '/community', '/nasa', '/explore',
+    '/notifications',
+  ]
+
   if (protectedPaths.some(p => path.startsWith(p))) {
     if (!session) {
       return NextResponse.redirect(new URL('/', request.url))

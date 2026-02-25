@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 interface User {
   id: string
@@ -22,12 +22,28 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+const NO_REDIRECT_PATHS = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/nasa', '/explore']
+
+function clearAllAuthStorage() {
+  if (typeof window === 'undefined') return
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('sb-') || key.startsWith('supabase') || key.startsWith('stellarhub')) {
+      localStorage.removeItem(key)
+    }
+  })
+  Object.keys(sessionStorage).forEach(key => {
+    if (key.startsWith('sb-') || key.startsWith('supabase')) {
+      sessionStorage.removeItem(key)
+    }
+  })
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const pathname = usePathname()
 
-  // Fungsi untuk menyimpan user ke localStorage
   const saveUserToLocalStorage = (userData: User | null) => {
     if (typeof window !== 'undefined') {
       if (userData) {
@@ -40,168 +56,124 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Fungsi untuk mengambil user dari localStorage
-  const getUserFromLocalStorage = (): User | null => {
-    if (typeof window !== 'undefined') {
-      const userStr = localStorage.getItem('stellarhub_user')
-      const timestampStr = localStorage.getItem('stellarhub_user_timestamp')
-      
-      if (userStr && timestampStr) {
-        const timestamp = parseInt(timestampStr)
-        if (Date.now() - timestamp < 3600000) {
-          return JSON.parse(userStr)
-        }
-      }
+  const buildUserData = async (sessionUser: any): Promise<User> => {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', sessionUser.id)
+      .single()
+
+    return {
+      id: sessionUser.id,
+      email: sessionUser.email || '',
+      username:
+        profile?.username ||
+        sessionUser.user_metadata?.username ||
+        sessionUser.email?.split('@')[0] ||
+        'User',
+      avatar_url:
+        profile?.avatar_url ||
+        sessionUser.user_metadata?.avatar_url ||
+        `https://ui-avatars.com/api/?name=${sessionUser.email?.split('@')[0]}&background=random`,
     }
-    return null
   }
 
   const checkAuth = async () => {
     try {
-      // Cek session dari Supabase
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (session?.user) {
-        // Fetch profile dari database
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-        
-        const userData: User = {
-          id: session.user.id,
-          email: session.user.email || '',
-          username: profile?.username || 
-                   session.user.user_metadata?.username || 
-                   session.user.email?.split('@')[0] || 
-                   'User',
-          avatar_url: profile?.avatar_url || 
-                     session.user.user_metadata?.avatar_url || 
-                     `https://ui-avatars.com/api/?name=${session.user.email?.split('@')[0]}&background=random`
-        }
-        
+      const { data: { user: verifiedUser }, error } = await supabase.auth.getUser()
+      if (verifiedUser && !error) {
+        const userData = await buildUserData(verifiedUser)
         setUser(userData)
         saveUserToLocalStorage(userData)
       } else {
-        // Cek dari localStorage sebagai fallback
-        const cachedUser = getUserFromLocalStorage()
-        if (cachedUser) {
-          setUser(cachedUser)
-        } else {
-          setUser(null)
-        }
+        clearAllAuthStorage()
+        setUser(null)
       }
-    } catch (error) {
-      console.error('Error checking auth:', error)
+    } catch {
       setUser(null)
-      saveUserToLocalStorage(null)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
+    let mounted = true
     checkAuth()
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event)
+        console.log('Auth event:', event)
         
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-          
-          const userData: User = {
-            id: session.user.id,
-            email: session.user.email || '',
-            username: profile?.username || 
-                     session.user.user_metadata?.username || 
-                     session.user.email?.split('@')[0] || 
-                     'User',
-            avatar_url: profile?.avatar_url || 
-                       session.user.user_metadata?.avatar_url || 
-                       `https://ui-avatars.com/api/?name=${session.user.email?.split('@')[0]}&background=random`
+        if (!mounted) return
+
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          if (session?.user) {
+            const userData = await buildUserData(session.user)
+            setUser(userData)
+            saveUserToLocalStorage(userData)
           }
-          
-          setUser(userData)
-          saveUserToLocalStorage(userData)
-        } else {
+        } else if (event === 'SIGNED_OUT') {
           setUser(null)
-          saveUserToLocalStorage(null)
+          clearAllAuthStorage()
         }
-        
-        router.refresh()
       }
     )
 
     return () => {
+      mounted = false
       subscription.unsubscribe()
     }
-  }, []) // ← Kosongin dependency array!
+  }, [])
 
   const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    
-    if (error) throw error
-    await checkAuth()
+    setLoading(true)
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        if (error.message.includes('Email not confirmed')) throw new Error('EMAIL_NOT_CONFIRMED')
+        throw error
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   const register = async (email: string, password: string, username: string) => {
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          avatar_url: `https://ui-avatars.com/api/?name=${username}&background=random`
-        }
-      }
-    })
-    
-    if (authError) throw authError
-
-    if (authData.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
+    setLoading(true)
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email, password,
+        options: { data: { username } },
+      })
+      if (authError) throw authError
+      if (authData.user) {
+        await supabase.from('profiles').insert({
           id: authData.user.id,
-          email,
           username,
-          avatar_url: `https://ui-avatars.com/api/?name=${username}&background=random`
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${authData.user.id}`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
-      
-      if (profileError) {
-        console.log('Profile creation note:', profileError.message)
       }
-      
-      await checkAuth()
+    } finally {
+      setLoading(false)
     }
   }
 
   const logout = async () => {
-    await supabase.auth.signOut()
-    setUser(null)
-    saveUserToLocalStorage(null)
-    router.push('/')
+    try {
+      await supabase.auth.signOut({ scope: 'global' })
+    } catch (e) {
+      console.error('Logout error:', e)
+    } finally {
+      clearAllAuthStorage()
+      setUser(null)
+      window.location.href = '/login'
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      loading, 
-      login, 
-      register, 
-      logout,
-      checkAuth 
-    }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   )
@@ -209,8 +181,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }

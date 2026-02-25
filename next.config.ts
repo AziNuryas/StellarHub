@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    domains: [
+      'api.dicebear.com',
+      'ui-avatars.com',
+      'nonabstractly-unmoaning-tameka.ngrok-free.dev',
+      'localhost',
+    ],
+  },
 };
 
 export default nextConfig;

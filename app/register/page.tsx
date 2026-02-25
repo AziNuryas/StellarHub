@@ -42,7 +42,7 @@ function getStrength(pw: string) {
   if (/[A-Z]/.test(pw)) score++;
   if (/[0-9]/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  return score; // 0..5
+  return score;
 }
 const STRENGTH_LABEL = ['', 'Weak', 'Fair', 'Good', 'Strong', 'Stellar 🚀'];
 const STRENGTH_COLOR = ['', '#ef4444', '#f97316', '#eab308', '#10b981', '#818cf8'];
@@ -79,23 +79,55 @@ export default function RegisterPage() {
       });
       if (error) throw error;
 
+      // Insert profile kalau user berhasil dibuat
       if (data.user) {
-        await supabase.from('profiles').insert({
+        const { error: profileError } = await supabase.from('profiles').insert({
           id: data.user.id,
           username: formData.username || formData.email.split('@')[0],
           avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.id}`,
           bio: 'Space Explorer',
           verified: false,
         });
+        // Log kalau ada error profile tapi jangan throw — user tetap bisa lanjut
+        if (profileError) console.warn('Profile insert warning:', profileError.message);
       }
 
-      toast.success('🎉 Account created! Launching into orbit…');
+      // ✅ FIX: Cek apakah session langsung tersedia (email confirm OFF)
+      if (data.session) {
+        // Session langsung ada — user bisa langsung masuk
+        toast.success('🎉 Account created! Launching into orbit…');
+        router.push('/feed');
+        router.refresh();
+        return;
+      }
+
+      // ✅ FIX: Session belum ada, coba signIn manual
+      // Ini terjadi kalau email confirm masih ON di Supabase
       const { error: loginErr } = await supabase.auth.signInWithPassword({
-        email: formData.email, password: formData.password,
+        email: formData.email,
+        password: formData.password,
       });
-      if (!loginErr) { router.push('/feed'); router.refresh(); }
+
+      if (!loginErr) {
+        // Login berhasil
+        toast.success('🎉 Account created! Launching into orbit…');
+        router.push('/feed');
+        router.refresh();
+      } else {
+        // Email confirmation required — kasih tau user cek email
+        toast.success('✉️ Account created! Please check your email to confirm your account.');
+        router.push('/login');
+      }
+
     } catch (err: any) {
-      toast.error(err.message || 'Registration failed');
+      // Handle error spesifik
+      if (err.message?.includes('User already registered')) {
+        toast.error('Email already in use. Try logging in instead.');
+      } else if (err.message?.includes('Password should be')) {
+        toast.error('Password too weak. Use at least 6 characters.');
+      } else {
+        toast.error(err.message || 'Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -435,7 +467,6 @@ export default function RegisterPage() {
                     }
                   </button>
                 </div>
-                {/* Strength bar */}
                 {formData.password.length > 0 && (
                   <div className="pw-strength">
                     <div className="pw-bar-bg">
@@ -465,7 +496,6 @@ export default function RegisterPage() {
                     required
                   />
                 </div>
-                {/* Match indicator */}
                 {formData.confirmPassword.length > 0 && (
                   <p className="rg-hint" style={{
                     color: formData.password === formData.confirmPassword

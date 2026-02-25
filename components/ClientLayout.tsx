@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { useAuth } from "@/app/contexts/AuthContext"
+import { useTheme } from "@/app/contexts/ThemeContext"  // ← TETAP ADA
 import Navbar from "@/components/shared/Navbar"
 import DebugAuth from '@/components/DebugAuth'
 
@@ -12,6 +13,7 @@ export default function ClientLayout({
   children: React.ReactNode
 }) {
   const { user, loading } = useAuth()
+  const { theme } = useTheme() // ← AMAN KARENA SUDAH DI WRAP
   const router = useRouter()
   const pathname = usePathname()
 
@@ -22,20 +24,16 @@ export default function ClientLayout({
   useEffect(() => {
     if (loading) return
 
-    // ✅ JANGAN PERNAH REDIRECT DARI LANDING PAGE!
-    if (isLandingPage) {
-      return
-    }
+    // ✅ Jangan redirect dari landing page
+    if (isLandingPage) return
 
-    // Redirect ke landing kalo akses protected tanpa login
+    // ✅ Redirect ke landing kalau akses protected tanpa login
     if (!user && !isPublicPath) {
       router.push('/')
     }
 
-    // Redirect ke feed kalo udah login buka login/register
-    if (user && isAuthPage) {
-      router.push('/feed')
-    }
+    // ✅ DIHAPUS: jangan auto-redirect ke /feed kalau buka /login atau /register
+    // Login page punya UI sendiri untuk handle kondisi "udah login"
 
   }, [user, loading, pathname, router, isLandingPage, isAuthPage, isPublicPath])
 

@@ -3,7 +3,8 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "sonner"
 import { AuthProvider } from './contexts/AuthContext'
-import ClientLayout from '@/components/ClientLayout' // ← komponen baru
+import { ThemeProvider } from './contexts/ThemeContext'  // ← IMPORT
+import ClientLayout from '@/components/ClientLayout'
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -18,13 +19,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body className={`${inter.className} antialiased`}>
-        <AuthProvider>
-          <ClientLayout> {/* ← semua logic client dipindah ke sini */}
-            {children}
-          </ClientLayout>
-        </AuthProvider>
+        <ThemeProvider> {/* ← ThemeProvider harus di LUAR */}
+          <AuthProvider>
+            <ClientLayout>
+              {children}
+            </ClientLayout>
+          </AuthProvider>
+        </ThemeProvider>
         <Toaster 
           position="top-right"
           theme="dark"

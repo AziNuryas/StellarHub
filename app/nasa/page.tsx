@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 import { 
   Heart, Bookmark, Download, Share2, Search, Filter,
   RefreshCw, X, Eye, Calendar, User, Globe, Camera,
@@ -9,9 +11,13 @@ import {
   Volume2, VolumeX, Grid, List, Image as ImageIcon,
   Video, FileText, Settings, AlertCircle, Check,
   Users, BookOpen, Compass, Satellite, Rocket,
-  Telescope, Cloud, Wind, Thermometer, Navigation
+  Telescope, Cloud, Wind, Thermometer, Navigation,
+  MessageCircle, Send, Loader2, Sparkles, MoreHorizontal
 } from 'lucide-react'
 
+/* ══════════════════════════════════════════════════════
+   TYPES
+══════════════════════════════════════════════════════ */
 interface NasaItem {
   id: string
   title: string
@@ -27,6 +33,8 @@ interface NasaItem {
   views: number
   isLiked: boolean
   isBookmarked: boolean
+  likeId?: string
+  category?: string // Kategori asal (nebula, galaxy, etc)
 }
 
 interface Category {
@@ -37,115 +45,360 @@ interface Category {
   color: string
 }
 
+/* ══════════════════════════════════════════════════════
+   HELPER COMPONENTS
+══════════════════════════════════════════════════════ */
+function timeAgo(d: string) {
+  const diff = Date.now() - new Date(d).getTime()
+  const m = Math.floor(diff / 60000)
+  const h = Math.floor(m / 60)
+  const day = Math.floor(h / 24)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  if (h < 24) return `${h}h ago`
+  return `${day}d ago`
+}
+
+const AV_GRADS = [
+  'linear-gradient(135deg,#7c3aed,#4f46e5)',
+  'linear-gradient(135deg,#0ea5e9,#06b6d4)',
+  'linear-gradient(135deg,#ec4899,#f43f5e)',
+  'linear-gradient(135deg,#10b981,#059669)',
+  'linear-gradient(135deg,#f59e0b,#f97316)',
+]
+const avGrad = (s = '') => AV_GRADS[(s.charCodeAt(0) || 65) % AV_GRADS.length]
+
+function Avatar({ name = 'A', size = 40 }: { name?: string; size?: number }) {
+  const r = Math.round(size * 0.28)
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: r,
+      background: avGrad(name), flexShrink: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.4, fontWeight: 700, color: '#fff', userSelect: 'none',
+    }}>
+      {name.charAt(0).toUpperCase()}
+    </div>
+  )
+}
+
+function renderText(text: string) {
+  return text.split(/(\s+)/).map((w, i) =>
+    w.startsWith('#') || w.startsWith('@')
+      ? <span key={i} style={{ color: '#818cf8', fontWeight: 500 }}>{w}</span>
+      : w
+  )
+}
+
+/* ══════════════════════════════════════════════════════
+   SKELETON LOADING
+══════════════════════════════════════════════════════ */
+function SkeletonGrid() {
+  return (
+    <div className="fd-grid">
+      {[1,2,3,4,5,6].map(i => (
+        <div key={i} className="fd-card-nasa" style={{ height: '320px' }}>
+          <div className="fd-img-container" style={{ background: 'rgba(255,255,255,0.05)' }}></div>
+          <div className="fd-content">
+            <div style={{ height: '20px', width: '80%', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', marginBottom: '8px' }}></div>
+            <div style={{ height: '16px', width: '60%', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', marginBottom: '12px' }}></div>
+            <div style={{ height: '32px', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════════
+   NASA PAGE
+══════════════════════════════════════════════════════ */
 export default function NasaPage() {
+  const supabase = createClient()
+  
   // ============================
   // STATE MANAGEMENT
   // ============================
   const [items, setItems] = useState<NasaItem[]>([])
   const [filteredItems, setFilteredItems] = useState<NasaItem[]>([])
-  const [query, setQuery] = useState('nebula')
-  const [page, setPage] = useState(1)
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [selectedItem, setSelectedItem] = useState<NasaItem | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [activeCategory, setActiveCategory] = useState('all')
-  const [sortBy, setSortBy] = useState('recent')
-  const [showFilters, setShowFilters] = useState(false)
-  const [notification, setNotification] = useState<string | null>(null)
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
   const [stats, setStats] = useState({
     totalItems: 0,
     totalLikes: 0,
     totalViews: 0,
-    todayItems: 0
   })
   const observerRef = useRef<HTMLDivElement>(null)
+  const [usedKeywords, setUsedKeywords] = useState<string[]>([])
+  
+  // ============================
+  // STATE UNTUK POSTING KE KOMUNITAS
+  // ============================
+  const [showPostModal, setShowPostModal] = useState(false)
+  const [postContent, setPostContent] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
   // ============================
-  // KATEGORI & TOPIK
+  // ALL NASA KEYWORDS
+  // ============================
+  const nasaKeywords = [
+    // Deep Space Objects
+    'nebula', 'galaxy', 'black hole', 'star', 'supernova',
+    'quasar', 'pulsar', 'globular cluster', 'open cluster',
+    'orion nebula', 'eagle nebula', 'crab nebula', 'ring nebula',
+    'helix nebula', 'tarantula nebula', 'horsehead nebula',
+    'andromeda galaxy', 'milky way', 'whirlpool galaxy',
+    'sombrero galaxy', 'cartwheel galaxy', 'antennae galaxies',
+    
+    // Solar System
+    'sun', 'mercury', 'venus', 'earth', 'moon', 'mars',
+    'jupiter', 'saturn', 'uranus', 'neptune', 'pluto',
+    'asteroid', 'comet', 'meteor', 'kuiper belt', 'oort cloud',
+    
+    // Planets Details
+    'mars rover', 'curiosity', 'perseverance', 'opportunity',
+    'jupiter spots', 'saturn rings', 'io', 'europa', 'titan',
+    'enceladus', 'triton', 'ceres', 'vesta',
+    
+    // Space Missions
+    'apollo', 'artemis', 'iss', 'space station', 'space shuttle',
+    'hubble', 'james webb', 'chandra', 'spitzer', 'fermi',
+    'voyager', 'pioneer', 'new horizons', 'cassini', 'galileo',
+    'juno', 'dragon', 'starship', 'orion spacecraft',
+    
+    // Astronauts & People
+    'astronaut', 'spacewalk', 'moon landing', 'space suit',
+    'neil armstrong', 'buzz aldrin', 'sally ride', 'john glenn',
+    
+    // Earth Observations
+    'earth from space', 'aurora', 'northern lights', 'southern lights',
+    'hurricane from space', 'clouds', 'ocean', 'continent',
+    'night lights', 'city lights', 'earth limb', 'atmosphere',
+    
+    // Space Phenomena
+    'solar flare', 'coronal mass ejection', 'sunspot',
+    'aurora borealis', 'aurora australis', 'eclipse',
+    'solar eclipse', 'lunar eclipse', 'transit', 'occultation',
+    'gamma ray burst', 'cosmic ray', 'dark matter',
+    
+    // Telescopes & Instruments
+    'telescope', 'observatory', 'radio telescope',
+    'keck', 'vlt', 'gemini', 'subaru', 'alma',
+    'spitzer', 'planck', 'herschel', 'xmm-newton',
+    
+    // Launch Vehicles
+    'rocket', 'falcon', 'atlas', 'delta', 'ariane',
+    'soyuz', 'proton', 'long march', 'launch',
+    'lift off', 'countdown', 'launch pad',
+    
+    // Space Technology
+    'satellite', 'probe', 'lander', 'rover', 'drone',
+    'helicopter', 'ingenuity', 'solar panel', 'antenna',
+    'thruster', 'engine', 'fuel tank', 'fairing',
+    
+    // Astrophotography
+    'deep field', 'wide field', 'long exposure',
+    'star trail', 'night sky', 'constellation',
+    'zodiacal light', 'milky way core', 'star cluster',
+    
+    // Add more specific ones
+    'black hole m87', 'sagittarius a*', 'cygnus x-1',
+    'trappist-1', 'proxima centauri', 'betelgeuse',
+    'rigel', 'sirius', 'vega', 'polaris',
+    'orion constellation', 'ursa major', 'cassiopeia',
+    'pleiades', 'hyades', 'beehive cluster'
+  ]
+
+  // ============================
+  // CATEGORIES BUAT FILTER
   // ============================
   const categories: Category[] = [
     { id: 'all', name: 'Semua', icon: '🌌', count: 0, color: 'from-purple-500 to-blue-500' },
     { id: 'nebula', name: 'Nebula', icon: '✨', count: 0, color: 'from-pink-500 to-purple-500' },
     { id: 'galaxy', name: 'Galaksi', icon: '🌀', count: 0, color: 'from-blue-500 to-cyan-500' },
+    { id: 'black hole', name: 'Black Hole', icon: '⚫', count: 0, color: 'from-gray-800 to-black' },
     { id: 'planet', name: 'Planet', icon: '🪐', count: 0, color: 'from-yellow-500 to-orange-500' },
-    { id: 'star', name: 'Bintang', icon: '⭐', count: 0, color: 'from-yellow-400 to-red-500' },
-    { id: 'blackhole', name: 'Lubang Hitam', icon: '⚫', count: 0, color: 'from-gray-800 to-black' },
-    { id: 'solarsystem', name: 'Tata Surya', icon: '☀️', count: 0, color: 'from-orange-500 to-yellow-500' },
-    { id: 'spacecraft', name: 'Wahana Antariksa', icon: '🚀', count: 0, color: 'from-red-500 to-pink-500' },
-    { id: 'earth', name: 'Bumi', icon: '🌍', count: 0, color: 'from-green-500 to-blue-500' },
     { id: 'moon', name: 'Bulan', icon: '🌙', count: 0, color: 'from-gray-400 to-gray-600' },
     { id: 'mars', name: 'Mars', icon: '🔴', count: 0, color: 'from-red-600 to-orange-500' },
-    { id: 'jupiter', name: 'Jupiter', icon: '🪐', count: 0, color: 'from-orange-400 to-yellow-400' }
-  ]
-
-  const trendingTopics = [
-    { name: 'James Webb', count: 245, icon: '🔭' },
-    { name: 'Black Hole', count: 189, icon: '⚫' },
-    { name: 'Exoplanet', count: 156, icon: '🪐' },
-    { name: 'Aurora', count: 132, icon: '🌌' },
-    { name: 'ISS', count: 98, icon: '🛰️' },
-    { name: 'Supernova', count: 87, icon: '💥' }
+    { id: 'jupiter', name: 'Jupiter', icon: '🪐', count: 0, color: 'from-orange-400 to-yellow-400' },
+    { id: 'saturn', name: 'Saturn', icon: '🪐', count: 0, color: 'from-yellow-600 to-amber-400' },
+    { id: 'star', name: 'Bintang', icon: '⭐', count: 0, color: 'from-yellow-400 to-red-500' },
+    { id: 'sun', name: 'Matahari', icon: '☀️', count: 0, color: 'from-yellow-500 to-red-600' },
+    { id: 'comet', name: 'Komet', icon: '☄️', count: 0, color: 'from-blue-400 to-cyan-400' },
+    { id: 'astronaut', name: 'Astronot', icon: '👨‍🚀', count: 0, color: 'from-blue-500 to-indigo-600' },
+    { id: 'spacecraft', name: 'Wahana', icon: '🚀', count: 0, color: 'from-red-500 to-pink-500' },
+    { id: 'satellite', name: 'Satelit', icon: '🛰️', count: 0, color: 'from-gray-500 to-slate-600' },
+    { id: 'iss', name: 'ISS', icon: '🛸', count: 0, color: 'from-blue-400 to-indigo-500' },
+    { id: 'telescope', name: 'Teleskop', icon: '🔭', count: 0, color: 'from-purple-600 to-indigo-600' },
+    { id: 'aurora', name: 'Aurora', icon: '🌌', count: 0, color: 'from-green-400 to-blue-500' },
+    { id: 'eclipse', name: 'Gerhana', icon: '🌑', count: 0, color: 'from-gray-700 to-yellow-800' },
+    { id: 'supernova', name: 'Supernova', icon: '💥', count: 0, color: 'from-orange-600 to-red-700' },
   ]
 
   // ============================
-  // FETCH DATA NASA
+  // CEK USER (REALTIME)
+  // ============================
+  useEffect(() => {
+    setAuthLoading(true)
+    
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setAuthLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // ============================
+  // FETCH DATA NASA - MULTI KEYWORD
   // ============================
   const fetchNasaData = async (reset = false) => {
     try {
       if (reset) {
         setLoading(true)
-        setPage(1)
+        setUsedKeywords([])
       } else {
         setLoadingMore(true)
       }
 
-      const searchTerm = query || 'space'
-      const response = await fetch(
-        `https://images-api.nasa.gov/search?q=${searchTerm}&media_type=image&page=${reset ? 1 : page}&page_size=20`
+      // Pilih keyword yang belum pernah di-fetch
+      let keywordsToFetch: string[] = []
+      
+      if (reset) {
+        // Ambil 8 keyword random untuk initial load
+        keywordsToFetch = nasaKeywords
+          .sort(() => 0.5 - Math.random())
+          .slice(0, 8)
+        setUsedKeywords(keywordsToFetch)
+      } else {
+        // Ambil 4 keyword baru yang belum dipakai
+        const remainingKeywords = nasaKeywords.filter(k => !usedKeywords.includes(k))
+        if (remainingKeywords.length === 0) {
+          // Kalo udah habis, loop lagi dari awal
+          keywordsToFetch = nasaKeywords
+            .sort(() => 0.5 - Math.random())
+            .slice(0, 4)
+        } else {
+          keywordsToFetch = remainingKeywords
+            .sort(() => 0.5 - Math.random())
+            .slice(0, 4)
+        }
+        setUsedKeywords(prev => [...prev, ...keywordsToFetch])
+      }
+
+      // Tambah keyword dari query kalo ada
+      if (query && !keywordsToFetch.includes(query)) {
+        keywordsToFetch.push(query)
+      }
+
+      console.log('Fetching keywords:', keywordsToFetch)
+      
+      const allItems: NasaItem[] = []
+      
+      // Fetch semua keyword secara parallel
+      await Promise.all(
+        keywordsToFetch.map(async (keyword) => {
+          try {
+            const response = await fetch(
+              `https://images-api.nasa.gov/search?q=${encodeURIComponent(keyword)}&media_type=image&page=1&page_size=15`
+            )
+            
+            if (!response.ok) return []
+            
+            const data = await response.json()
+            
+            return data.collection.items.map((item: any) => ({
+              id: item.data[0].nasa_id,
+              title: item.data[0].title || 'Gambar NASA',
+              description: item.data[0].description || 'Gambar menakjubkan dari luar angkasa.',
+              image: item.links?.[0]?.href || 'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06',
+              date: item.data[0].date_created?.split('T')[0] || new Date().toISOString().split('T')[0],
+              source: item.data[0].center || 'NASA',
+              photographer: item.data[0].photographer || 'NASA',
+              keywords: item.data[0].keywords || [keyword, 'space', 'nasa'],
+              nasa_id: item.data[0].nasa_id,
+              media_type: item.data[0].media_type || 'image',
+              likes: 0,
+              views: Math.floor(Math.random() * 5000) + 1000,
+              isLiked: false,
+              isBookmarked: false,
+              category: keyword
+            }))
+          } catch (error) {
+            console.error(`Error fetching ${keyword}:`, error)
+            return []
+          }
+        })
+      ).then(results => {
+        results.forEach(items => {
+          allItems.push(...items)
+        })
+      })
+
+      // Hapus duplikat berdasarkan ID
+      const uniqueItems = Array.from(
+        new Map(allItems.map(item => [item.id, item])).values()
       )
 
-      if (!response.ok) throw new Error('Gagal mengambil data dari NASA')
+      // Urutin dari terbaru ke terlama
+      uniqueItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-      const data = await response.json()
-      
-      const newItems: NasaItem[] = data.collection.items.map((item: any) => ({
-        id: item.data[0].nasa_id,
-        title: item.data[0].title || 'Gambar NASA',
-        description: item.data[0].description?.substring(0, 150) + '...' || 'Gambar menakjubkan dari luar angkasa.',
-        image: item.links?.[0]?.href || 'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06',
-        date: item.data[0].date_created?.split('T')[0] || new Date().toISOString().split('T')[0],
-        source: item.data[0].center || 'NASA',
-        photographer: item.data[0].photographer || 'NASA',
-        keywords: item.data[0].keywords || ['space', 'nasa'],
-        nasa_id: item.data[0].nasa_id,
-        media_type: item.data[0].media_type || 'image',
-        likes: Math.floor(Math.random() * 1000) + 100,
-        views: Math.floor(Math.random() * 5000) + 1000,
-        isLiked: false,
-        isBookmarked: false
-      }))
+      // Kalo user login, cek likes dari database
+      if (user) {
+        for (let item of uniqueItems) {
+          const { data: likeData } = await supabase
+            .from('nasa_likes')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('nasa_id', item.id)
+            .maybeSingle()
+          
+          const { count } = await supabase
+            .from('nasa_likes')
+            .select('*', { count: 'exact', head: true })
+            .eq('nasa_id', item.id)
+          
+          item.isLiked = !!likeData
+          item.likeId = likeData?.id
+          item.likes = count || 0
+        }
+      }
 
       if (reset) {
-        setItems(newItems)
-        setFilteredItems(newItems)
-        setPage(2)
+        setItems(uniqueItems)
+        setFilteredItems(uniqueItems)
       } else {
-        setItems(prev => [...prev, ...newItems])
-        setFilteredItems(prev => [...prev, ...newItems])
-        setPage(prev => prev + 1)
+        // Gabung dengan items lama, hapus duplikat, urutin lagi
+        const combined = [...items, ...uniqueItems]
+        const uniqueCombined = Array.from(
+          new Map(combined.map(item => [item.id, item])).values()
+        )
+        uniqueCombined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        
+        setItems(uniqueCombined)
+        setFilteredItems(uniqueCombined)
       }
 
       // Update stats
-      updateStats(reset ? newItems : [...items, ...newItems])
+      updateStats(reset ? uniqueItems : items)
       
-      showNotification(`${newItems.length} gambar NASA berhasil dimuat!`)
+      toast.success(`${uniqueItems.length} gambar dari berbagai kategori berhasil dimuat!`)
 
     } catch (error) {
       console.error('Error:', error)
-      showNotification('Gagal memuat data NASA. Coba lagi nanti!', 'error')
+      toast.error('Gagal memuat data NASA. Coba lagi nanti!')
       
-      // Fallback data jika API gagal
       if (reset) {
         const fallbackData = generateFallbackData()
         setItems(fallbackData)
@@ -159,77 +412,175 @@ export default function NasaPage() {
   }
 
   // ============================
-  // HELPER FUNCTIONS
+  // FETCH LIKES (update setelah like)
+  // ============================
+  const fetchLikesForItem = async (itemId: string) => {
+    if (!user) return
+    
+    const { count } = await supabase
+      .from('nasa_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('nasa_id', itemId)
+    
+    const { data: likeData } = await supabase
+      .from('nasa_likes')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('nasa_id', itemId)
+      .maybeSingle()
+    
+    setItems(prev => prev.map(item => 
+      item.id === itemId 
+        ? { ...item, likes: count || 0, isLiked: !!likeData, likeId: likeData?.id }
+        : item
+    ))
+    
+    setFilteredItems(prev => prev.map(item => 
+      item.id === itemId 
+        ? { ...item, likes: count || 0, isLiked: !!likeData, likeId: likeData?.id }
+        : item
+    ))
+  }
+
+  // ============================
+  // FALLBACK DATA (kalo API error)
   // ============================
   const generateFallbackData = (): NasaItem[] => {
-    const fallbackImages = [
-      'https://images.unsplash.com/photo-1462331940025-496dfbfc7564',
-      'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06',
-      'https://images.unsplash.com/photo-1502134249126-9f3755a50d78',
-      'https://images.unsplash.com/photo-1464802686167-b939a6910659',
-      'https://images.unsplash.com/photo-1614313913007-2b4ae8ce32d6',
-      'https://images.unsplash.com/photo-1465101162946-4377e57745c3',
-      'https://images.unsplash.com/photo-1532601224476-15c79f2f7a51',
-      'https://images.unsplash.com/photo-1541873676-a18131494184',
-      'https://images.unsplash.com/photo-1462331940025-496dfbfc7564',
-      'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06'
+    const categories = [
+      { name: 'Nebula Orion', keyword: 'nebula', icon: '✨' },
+      { name: 'Galaksi Andromeda', keyword: 'galaxy', icon: '🌀' },
+      { name: 'Black Hole M87', keyword: 'black hole', icon: '⚫' },
+      { name: 'Planet Jupiter', keyword: 'jupiter', icon: '🪐' },
+      { name: 'Cincin Saturnus', keyword: 'saturn', icon: '🪐' },
+      { name: 'Mars', keyword: 'mars', icon: '🔴' },
+      { name: 'Bulan Purnama', keyword: 'moon', icon: '🌙' },
+      { name: 'Matahari', keyword: 'sun', icon: '☀️' },
+      { name: 'Aurora Borealis', keyword: 'aurora', icon: '🌌' },
+      { name: 'ISS', keyword: 'iss', icon: '🛸' },
+      { name: 'Astronot', keyword: 'astronaut', icon: '👨‍🚀' },
+      { name: 'Roket Falcon', keyword: 'rocket', icon: '🚀' },
     ]
 
-    return fallbackImages.map((img, index) => ({
+    return categories.map((cat, index) => ({
       id: `fallback-${index}`,
-      title: ['Nebula Orion', 'Galaksi Andromeda', 'Planet Jupiter', 'Eclipse Matahari', 'Bulan Purnama'][index % 5],
-      description: 'Gambar luar angkasa yang menakjubkan dari NASA. Menampilkan keindahan alam semesta yang luas.',
-      image: `${img}?q=80&w=2070&auto=format&fit=crop`,
-      date: new Date(Date.now() - index * 86400000).toISOString().split('T')[0],
+      title: cat.name,
+      description: `Gambar menakjubkan dari ${cat.name}. Menampilkan keindahan alam semesta yang luas dan penuh misteri.`,
+      image: `https://images.unsplash.com/photo-${[
+        '1462331940025-496dfbfc7564',
+        '1446776653964-20c1d3a81b06',
+        '1502134249126-9f3755a50d78',
+        '1464802686167-b939a6910659',
+        '1614313913007-2b4ae8ce32d6'
+      ][index % 5]}?q=80&w=2070&auto=format&fit=crop`,
+      date: new Date(Date.now() - index * 86400000 * 7).toISOString().split('T')[0],
       source: 'NASA',
-      photographer: 'Fotografer NASA',
-      keywords: ['space', 'nasa', 'astronomy'],
+      photographer: 'NASA',
+      keywords: [cat.keyword, 'space', 'nasa', 'astronomy'],
       nasa_id: `nasa-${index}`,
       media_type: 'image',
-      likes: Math.floor(Math.random() * 1000) + 100,
-      views: Math.floor(Math.random() * 5000) + 1000,
+      likes: Math.floor(Math.random() * 150) + 20,
+      views: Math.floor(Math.random() * 1000) + 200,
       isLiked: false,
-      isBookmarked: false
+      isBookmarked: false,
+      category: cat.keyword
     }))
   }
 
+  // ============================
+  // UPDATE STATS
+  // ============================
   const updateStats = (itemsList: NasaItem[]) => {
-    const today = new Date().toISOString().split('T')[0]
-    const todayItems = itemsList.filter(item => item.date === today).length
-    
     setStats({
       totalItems: itemsList.length,
       totalLikes: itemsList.reduce((sum, item) => sum + item.likes, 0),
       totalViews: itemsList.reduce((sum, item) => sum + item.views, 0),
-      todayItems
     })
   }
 
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-    setNotification(message)
-    setTimeout(() => setNotification(null), 3000)
+  // ============================
+  // LIKE ASLI (pakai database)
+  // ============================
+  const handleLike = async (id: string) => {
+    if (!user) {
+      toast.error('Login dulu untuk like!')
+      return
+    }
+
+    const item = items.find(i => i.id === id)
+    if (!item) return
+
+    try {
+      if (item.isLiked) {
+        // Unlike
+        if (item.likeId) {
+          await supabase
+            .from('nasa_likes')
+            .delete()
+            .eq('id', item.likeId)
+        }
+        
+        // Update UI
+        setItems(prev => prev.map(i => 
+          i.id === id 
+            ? { ...i, isLiked: false, likes: i.likes - 1, likeId: undefined }
+            : i
+        ))
+        setFilteredItems(prev => prev.map(i => 
+          i.id === id 
+            ? { ...i, isLiked: false, likes: i.likes - 1, likeId: undefined }
+            : i
+        ))
+        
+        toast.success('Like dihapus')
+      } else {
+        // Like
+        const { data, error } = await supabase
+          .from('nasa_likes')
+          .insert([
+            {
+              user_id: user.id,
+              nasa_id: item.id,
+              nasa_title: item.title,
+              nasa_image: item.image
+            }
+          ])
+          .select()
+        
+        if (error) throw error
+        
+        // Update UI
+        setItems(prev => prev.map(i => 
+          i.id === id 
+            ? { ...i, isLiked: true, likes: i.likes + 1, likeId: data[0].id }
+            : i
+        ))
+        setFilteredItems(prev => prev.map(i => 
+          i.id === id 
+            ? { ...i, isLiked: true, likes: i.likes + 1, likeId: data[0].id }
+            : i
+        ))
+        
+        toast.success('Gambar disukai! ❤️')
+      }
+    } catch (error) {
+      console.error('Error liking:', error)
+      toast.error('Gagal like. Coba lagi!')
+    }
   }
 
   // ============================
-  // ACTIONS
+  // BOOKMARK
   // ============================
-  const handleLike = (id: string) => {
-    setItems(prev => prev.map(item => 
-      item.id === id 
-        ? { ...item, isLiked: !item.isLiked, likes: item.isLiked ? item.likes - 1 : item.likes + 1 }
-        : item
-    ))
-    
-    setFilteredItems(prev => prev.map(item => 
-      item.id === id 
-        ? { ...item, isLiked: !item.isLiked, likes: item.isLiked ? item.likes - 1 : item.likes + 1 }
-        : item
-    ))
+  const handleBookmark = async (id: string) => {
+    if (!user) {
+      toast.error('Login dulu untuk bookmark!')
+      return
+    }
 
-    showNotification('Gambar ditambahkan ke favorit! ✨')
-  }
+    const item = items.find(i => i.id === id)
+    if (!item) return
 
-  const handleBookmark = (id: string) => {
+    // Update UI dulu
     setItems(prev => prev.map(item => 
       item.id === id 
         ? { ...item, isBookmarked: !item.isBookmarked }
@@ -242,15 +593,46 @@ export default function NasaPage() {
         : item
     ))
 
-    showNotification('Gambar disimpan! 📌')
+    try {
+      if (!item.isBookmarked) {
+        // Add bookmark
+        await supabase
+          .from('bookmarks')
+          .insert([
+            {
+              user_id: user.id,
+              title: item.title,
+              image_url: item.image,
+              bookmark_type: 'apod',
+              apod_date: item.date,
+              apod_explanation: item.description
+            }
+          ])
+        toast.success('Gambar disimpan! 📌')
+      } else {
+        // Remove bookmark
+        await supabase
+          .from('bookmarks')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('title', item.title)
+        toast.success('Bookmark dihapus')
+      }
+    } catch (error) {
+      console.error('Error bookmark:', error)
+      toast.error('Gagal menyimpan')
+    }
   }
 
+  // ============================
+  // SHARE
+  // ============================
   const handleShare = async (item: NasaItem) => {
     if (navigator.share) {
       try {
         await navigator.share({
           title: item.title,
-          text: `Lihat gambar NASA ini: ${item.title}`,
+          text: `Lihat gambar NASA ini: ${item.title}\n\n${item.description.substring(0, 100)}...`,
           url: item.image
         })
       } catch (error) {
@@ -258,10 +640,13 @@ export default function NasaPage() {
       }
     } else {
       navigator.clipboard.writeText(item.image)
-      showNotification('Link disalin ke clipboard! 📋')
+      toast.success('Link disalin ke clipboard! 📋')
     }
   }
 
+  // ============================
+  // DOWNLOAD
+  // ============================
   const handleDownload = async (imageUrl: string, title: string) => {
     try {
       const response = await fetch(imageUrl)
@@ -275,9 +660,88 @@ export default function NasaPage() {
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
       
-      showNotification('Gambar berhasil diunduh! ⬇️')
+      toast.success('Gambar berhasil diunduh! ⬇️')
     } catch (error) {
-      showNotification('Gagal mengunduh gambar', 'error')
+      toast.error('Gagal mengunduh gambar')
+    }
+  }
+
+  // ============================
+  // SHARE KE POSTINGAN (dengan deskripsi NASA + komen user)
+  // ============================
+  const handleShareToPost = async () => {
+    if (!user) {
+      toast.error('Silakan login dulu untuk posting!')
+      return
+    }
+
+    if (!selectedItem) return
+
+    try {
+      setPosting(true)
+      
+      // Format tanggal
+      const dateObj = new Date(selectedItem.date)
+      const formattedDate = dateObj.toLocaleDateString('id-ID', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })
+      
+      // Gabungkan deskripsi NASA dengan komen user
+      const nasaDescription = selectedItem.description
+      const userComment = postContent ? `\n\n**Komentar saya:**\n${postContent}` : ''
+      
+      // Kategori hashtags
+      const categoryHashtags = selectedItem.category 
+        ? `#${selectedItem.category.replace(/\s+/g, '')}` 
+        : '#NASA'
+      
+      const keywordsHashtags = selectedItem.keywords
+        .slice(0, 5)
+        .map(k => `#${k.replace(/\s+/g, '')}`)
+        .join(' ')
+      
+      const fullContent = `🌌 **${selectedItem.title}**\n\n📅 **Tanggal:** ${formattedDate}\n📸 **Sumber:** ${selectedItem.source}\n🏷️ **Kategori:** ${categoryHashtags}\n\n📝 **Deskripsi NASA:**\n${nasaDescription}${userComment}\n\n${keywordsHashtags} #Space #Astronomy`
+
+      // Simpan ke tabel posts
+      const { error } = await supabase
+        .from('posts')
+        .insert([
+          {
+            user_id: user.id,
+            title: `NASA: ${selectedItem.title}`,
+            content: fullContent,
+            image_url: selectedItem.image,
+            category: 'nasa'
+          }
+        ])
+      
+      if (error) throw error
+      
+      // Juga simpan ke bookmarks otomatis
+      await supabase
+        .from('bookmarks')
+        .insert([
+          {
+            user_id: user.id,
+            title: selectedItem.title,
+            image_url: selectedItem.image,
+            bookmark_type: 'apod',
+            apod_date: selectedItem.date,
+            apod_explanation: selectedItem.description
+          }
+        ])
+      
+      setShowPostModal(false)
+      setPostContent('')
+      toast.success('Berhasil diposting ke komunitas! 🚀')
+      
+    } catch (error) {
+      console.error('Error posting:', error)
+      toast.error('Gagal memposting. Coba lagi!')
+    } finally {
+      setPosting(false)
     }
   }
 
@@ -293,32 +757,21 @@ export default function NasaPage() {
         item.keywords.some(keyword => 
           keyword.toLowerCase().includes(activeCategory.toLowerCase())
         ) || 
-        item.title.toLowerCase().includes(activeCategory.toLowerCase())
+        item.title.toLowerCase().includes(activeCategory.toLowerCase()) ||
+        item.category?.toLowerCase().includes(activeCategory.toLowerCase())
       )
     }
     
-    // Sort items
-    if (sortBy === 'recent') {
+    // Sort by date
+    if (sortOrder === 'newest') {
       filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    } else if (sortBy === 'popular') {
-      filtered.sort((a, b) => b.likes - a.likes)
-    } else if (sortBy === 'views') {
-      filtered.sort((a, b) => b.views - a.views)
+    } else {
+      filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     }
     
     setFilteredItems(filtered)
     
-    // Update category counts
-    categories.forEach(cat => {
-      const count = items.filter(item => 
-        item.keywords.some(keyword => 
-          keyword.toLowerCase().includes(cat.id.toLowerCase())
-        )
-      ).length
-      // Update count logic here
-    })
-    
-  }, [items, activeCategory, sortBy])
+  }, [items, activeCategory, sortOrder])
 
   // ============================
   // INFINITE SCROLL
@@ -326,7 +779,7 @@ export default function NasaPage() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
-        if (entries[0].isIntersecting && !loading && !loadingMore) {
+        if (entries[0].isIntersecting && !loading && !loadingMore && items.length > 0) {
           fetchNasaData()
         }
       },
@@ -338,7 +791,7 @@ export default function NasaPage() {
     }
 
     return () => observer.disconnect()
-  }, [loading, loadingMore])
+  }, [loading, loadingMore, items.length])
 
   // ============================
   // INITIAL FETCH
@@ -351,397 +804,595 @@ export default function NasaPage() {
   // RENDER UI
   // ============================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-stellar-black via-stellar-dark to-stellar-black text-white">
-      
-      {/* Notification */}
-      {notification && (
-        <div className="fixed top-4 right-4 z-50 animate-slide-in">
-          <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-3 rounded-xl shadow-xl">
-            <div className="flex items-center gap-2">
-              <Check className="h-5 w-5" />
-              <span>{notification}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Header dengan Background */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 via-blue-900/20 to-cyan-900/20"></div>
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
+    <div className="fd-root">
+      <style>{`
+        .fd-root {
+          min-height: 100svh;
+          padding: 30px 16px 80px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+          color: #f0f0ff;
+          background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
+        }
+        .fd-wrap {
+          max-width: 1280px;
+          margin: 0 auto;
+        }
+        .fd-card {
+          background: rgba(255,255,255,0.038);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 20px;
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          transition: border-color 0.25s;
+        }
+        .fd-card:hover { border-color: rgba(255,255,255,0.12); }
         
-        <div className="container mx-auto px-4 py-8 relative z-10">
+        .fd-header {
+          margin-bottom: 24px;
+        }
+        
+        .fd-title {
+          font-size: 2.5rem;
+          font-weight: 700;
+          background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          margin-bottom: 8px;
+        }
+        
+        .fd-search {
+          width: 100%;
+          padding: 14px 20px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 16px;
+          color: white;
+          font-size: 16px;
+          outline: none;
+          transition: all 0.2s;
+        }
+        .fd-search:focus {
+          border-color: #7c3aed;
+          background: rgba(255,255,255,0.08);
+        }
+        
+        .fd-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 20px;
+          margin-top: 24px;
+        }
+        
+        .fd-card-nasa {
+          background: rgba(255,255,255,0.038);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 20px;
+          overflow: hidden;
+          transition: all 0.3s;
+          cursor: pointer;
+        }
+        .fd-card-nasa:hover {
+          transform: translateY(-4px);
+          border-color: rgba(124,58,237,0.4);
+          box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+        }
+        
+        .fd-img-container {
+          position: relative;
+          height: 200px;
+          overflow: hidden;
+        }
+        .fd-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s;
+        }
+        .fd-card-nasa:hover .fd-img {
+          transform: scale(1.05);
+        }
+        
+        .fd-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          padding: 16px;
+          background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+        
+        .fd-badge {
+          display: inline-block;
+          padding: 4px 10px;
+          background: rgba(124,58,237,0.3);
+          border: 1px solid rgba(124,58,237,0.5);
+          border-radius: 20px;
+          font-size: 11px;
+          color: white;
+          backdrop-filter: blur(4px);
+        }
+        
+        .fd-content {
+          padding: 16px;
+        }
+        
+        .fd-title-sm {
+          font-size: 16px;
+          font-weight: 600;
+          color: rgba(255,255,255,0.9);
+          margin-bottom: 6px;
+          line-height: 1.4;
+        }
+        
+        .fd-desc {
+          font-size: 13px;
+          color: rgba(255,255,255,0.6);
+          line-height: 1.6;
+          margin-bottom: 12px;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        
+        .fd-meta {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 12px;
+          color: rgba(255,255,255,0.5);
+          margin-bottom: 12px;
+        }
+        
+        .fd-actions {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          border-top: 1px solid rgba(255,255,255,0.05);
+          padding-top: 12px;
+        }
+        
+        .fd-act {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          border-radius: 10px;
+          font-size: 13px;
+          color: rgba(255,255,255,0.6);
+          background: none;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .fd-act:hover {
+          background: rgba(255,255,255,0.05);
+          color: white;
+        }
+        .fd-act.liked { color: #f472b6; }
+        
+        .fd-tabs {
+          display: flex;
+          gap: 4px;
+          padding: 5px;
+          background: rgba(255,255,255,0.038);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 15px;
+          margin-bottom: 20px;
+        }
+        .fd-tab {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 9px;
+          border-radius: 10px;
+          font-size: 13.5px;
+          font-weight: 600;
+          color: rgba(155,160,210,0.6);
+          cursor: pointer;
+          border: none;
+          background: none;
+          transition: all 0.2s;
+        }
+        .fd-tab.active {
+          background: rgba(124,58,237,0.18);
+          border: 1px solid rgba(124,58,237,0.28);
+          color: rgba(210,205,255,0.95);
+        }
+        .fd-tab:hover {
+          background: rgba(255,255,255,0.05);
+          color: rgba(210,215,255,0.8);
+        }
+        
+        .fd-sort-select {
+          padding: 8px 12px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 10px;
+          color: white;
+          font-size: 13px;
+          outline: none;
+          cursor: pointer;
+        }
+        .fd-sort-select option {
+          background: #1a1a2e;
+        }
+        
+        .fd-modal {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.95);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        .fd-modal-content {
+          max-width: 1000px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          background: rgba(20,20,30,0.95);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 24px;
+          backdrop-filter: blur(20px);
+        }
+        
+        .fd-modal-header {
+          padding: 20px;
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          position: sticky;
+          top: 0;
+          background: rgba(20,20,30,0.95);
+          backdrop-filter: blur(20px);
+          border-radius: 24px 24px 0 0;
+        }
+        
+        .fd-modal-body {
+          padding: 24px;
+        }
+        
+        .fd-post-modal {
+          max-width: 500px;
+          width: 100%;
+          background: rgba(20,20,30,0.95);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 24px;
+        }
+        
+        .fd-ta {
+          width: 100%;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 12px;
+          padding: 12px;
+          color: white;
+          font-size: 14px;
+          resize: none;
+          outline: none;
+        }
+        .fd-ta:focus {
+          border-color: #7c3aed;
+        }
+        
+        .fd-btn {
+          padding: 10px 20px;
+          border-radius: 12px;
+          font-weight: 600;
+          font-size: 14px;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .fd-btn-primary {
+          background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+          color: white;
+        }
+        .fd-btn-primary:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(124,58,237,0.4);
+        }
+        .fd-btn-secondary {
+          background: rgba(255,255,255,0.1);
+          color: white;
+        }
+        .fd-btn-secondary:hover {
+          background: rgba(255,255,255,0.15);
+        }
+        .fd-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .fd-loading {
+          display: flex;
+          justify-content: center;
+          padding: 40px;
+        }
+        
+        .fd-spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid rgba(124,58,237,0.3);
+          border-top-color: #7c3aed;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        
+        .fd-categories {
+          display: flex;
+          gap: 8px;
+          overflow-x: auto;
+          padding: 8px 0 16px;
+          margin-bottom: 16px;
+          scrollbar-width: thin;
+          scrollbar-color: #7c3aed rgba(255,255,255,0.1);
+        }
+        .fd-categories::-webkit-scrollbar {
+          height: 4px;
+        }
+        .fd-categories::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.1);
+          border-radius: 10px;
+        }
+        .fd-categories::-webkit-scrollbar-thumb {
+          background: #7c3aed;
+          border-radius: 10px;
+        }
+        
+        .fd-cat-btn {
+          padding: 8px 16px;
+          border-radius: 30px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: rgba(255,255,255,0.7);
+          font-size: 13px;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .fd-cat-btn:hover {
+          background: rgba(124,58,237,0.2);
+          border-color: rgba(124,58,237,0.4);
+        }
+        .fd-cat-btn.active {
+          background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+          border-color: transparent;
+          color: white;
+        }
+        
+        .nasa-description-preview {
+          background: rgba(124,58,237,0.1);
+          border-left: 3px solid #7c3aed;
+          padding: 10px;
+          margin-bottom: 10px;
+          font-size: 13px;
+          color: rgba(255,255,255,0.8);
+          border-radius: 0 8px 8px 0;
+        }
+        
+        .category-chip {
+          display: inline-block;
+          padding: 2px 8px;
+          background: rgba(14,165,233,0.2);
+          border: 1px solid rgba(14,165,233,0.4);
+          border-radius: 12px;
+          font-size: 10px;
+          color: #7dd3fc;
+          margin-right: 4px;
+        }
+      `}</style>
+
+      <div className="fd-wrap">
+        {/* Header */}
+        <div className="fd-header">
+          <h1 className="fd-title">NASA Image Gallery</h1>
+          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '20px' }}>
+            Menampilkan {stats.totalItems} gambar dari berbagai kategori: Nebula, Black Hole, Galaxy, Planet, Astronaut, dan masih banyak lagi!
+          </p>
           
-          {/* Header Utama */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-            <div>
-              <div className="flex items-center gap-4 mb-3">
-                <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-red-600 to-blue-600 flex items-center justify-center">
-                  <Satellite className="h-8 w-8 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-                    NASA Image Gallery
-                  </h1>
-                  <p className="text-gray-300 mt-1">Jelajahi keindahan alam semesta melalui koleksi gambar NASA</p>
-                </div>
-              </div>
-              
-              {/* Quick Stats */}
-              <div className="flex flex-wrap gap-4 mt-4">
-                <div className="flex items-center gap-2 bg-gray-900/50 px-4 py-2 rounded-xl">
-                  <ImageIcon className="h-5 w-5 text-purple-400" />
-                  <div>
-                    <div className="text-2xl font-bold">{stats.totalItems.toLocaleString()}</div>
-                    <div className="text-gray-400 text-sm">Gambar</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2 bg-gray-900/50 px-4 py-2 rounded-xl">
-                  <Heart className="h-5 w-5 text-red-400" />
-                  <div>
-                    <div className="text-2xl font-bold">{stats.totalLikes.toLocaleString()}</div>
-                    <div className="text-gray-400 text-sm">Suka</div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2 bg-gray-900/50 px-4 py-2 rounded-xl">
-                  <Eye className="h-5 w-5 text-blue-400" />
-                  <div>
-                    <div className="text-2xl font-bold">{stats.totalViews.toLocaleString()}</div>
-                    <div className="text-gray-400 text-sm">Dilihat</div>
-                  </div>
-                </div>
-              </div>
+          {/* Tabs + Sort */}
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            <div className="fd-tabs" style={{ flex: 1, minWidth: '200px' }}>
+              <button 
+                className={`fd-tab ${viewMode === 'grid' ? 'active' : ''}`}
+                onClick={() => setViewMode('grid')}
+              >
+                <Grid style={{width:13,height:13}}/> Grid
+              </button>
+              <button 
+                className={`fd-tab ${viewMode === 'list' ? 'active' : ''}`}
+                onClick={() => setViewMode('list')}
+              >
+                <List style={{width:13,height:13}}/> List
+              </button>
             </div>
             
-            {/* Actions */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => fetchNasaData(true)}
-                className="px-6 py-3 bg-gradient-to-r from-red-600 to-blue-600 rounded-xl hover:from-red-700 hover:to-blue-700 transition-all flex items-center gap-2"
-              >
-                <RefreshCw className="h-5 w-5" />
-                Refresh Data
-              </button>
-              
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-3 rounded-xl ${viewMode === 'grid' ? 'bg-purple-600/30 text-white' : 'bg-gray-900/50 text-gray-400 hover:text-white'}`}
-                >
-                  <Grid className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-3 rounded-xl ${viewMode === 'list' ? 'bg-purple-600/30 text-white' : 'bg-gray-900/50 text-gray-400 hover:text-white'}`}
-                >
-                  <List className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+            <select
+              className="fd-sort-select"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
+            >
+              <option value="newest">📅 Terbaru</option>
+              <option value="oldest">📅 Terlama</option>
+            </select>
+            
+            <button
+              onClick={() => fetchNasaData(true)}
+              className="fd-btn fd-btn-secondary"
+              style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <RefreshCw style={{ width: '14px', height: '14px' }} />
+              Refresh
+            </button>
           </div>
           
-          {/* Search Bar */}
-          <div className="mb-8">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-6 w-6 text-gray-400" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && fetchNasaData(true)}
-                placeholder="Cari gambar NASA: nebula, galaxy, mars, black hole..."
-                className="w-full pl-12 pr-4 py-4 bg-gray-900/70 border border-gray-700 rounded-2xl text-lg placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery('')}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2"
-                >
-                  <X className="h-5 w-5 text-gray-400 hover:text-white" />
-                </button>
-              )}
-            </div>
+          {/* Search */}
+          <div style={{ position: 'relative', marginBottom: '16px' }}>
+            <Search style={{
+              position: 'absolute',
+              left: '14px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: '18px',
+              height: '18px',
+              color: 'rgba(255,255,255,0.4)'
+            }} />
+            <input
+              type="text"
+              className="fd-search"
+              placeholder="Cari gambar NASA: nebula, black hole, galaxy, mars, astronaut..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && fetchNasaData(true)}
+              style={{ paddingLeft: '42px' }}
+            />
           </div>
           
           {/* Categories */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Kategori Populer</h2>
+          <div className="fd-categories">
+            {categories.map(cat => (
               <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 text-gray-400 hover:text-white"
+                key={cat.id}
+                className={`fd-cat-btn ${activeCategory === cat.id ? 'active' : ''}`}
+                onClick={() => setActiveCategory(cat.id)}
               >
-                <Filter className="h-5 w-5" />
-                Filter & Sort
+                {cat.icon} {cat.name}
               </button>
-            </div>
-            
-            <div className="flex gap-2 overflow-x-auto pb-4">
-              {categories.map(category => (
-                <button
-                  key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
-                  className={`px-4 py-3 rounded-xl font-medium transition-all whitespace-nowrap flex items-center gap-2 ${
-                    activeCategory === category.id
-                      ? `bg-gradient-to-r ${category.color} text-white shadow-lg`
-                      : 'bg-gray-900/50 text-gray-400 hover:text-white hover:bg-gray-800/50'
-                  }`}
-                >
-                  <span className="text-lg">{category.icon}</span>
-                  <span>{category.name}</span>
-                  <span className="text-xs bg-black/30 px-2 py-0.5 rounded-full">
-                    {category.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-            
-            {/* Filters Panel */}
-            {showFilters && (
-              <div className="mt-4 p-6 bg-gray-900/50 rounded-2xl border border-gray-800">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <label className="block text-gray-400 mb-2">Urutkan Berdasarkan</label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500"
-                    >
-                      <option value="recent">Terbaru</option>
-                      <option value="popular">Paling Populer</option>
-                      <option value="views">Paling Banyak Dilihat</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-gray-400 mb-2">Tipe Media</label>
-                    <div className="flex gap-2">
-                      <button className="px-4 py-2 bg-purple-600/30 rounded-lg">Gambar</button>
-                      <button className="px-4 py-2 bg-gray-800/50 rounded-lg">Video</button>
-                      <button className="px-4 py-2 bg-gray-800/50 rounded-lg">Audio</button>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-gray-400 mb-2">Tahun</label>
-                    <select className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3">
-                      <option>Semua Tahun</option>
-                      <option>2024</option>
-                      <option>2023</option>
-                      <option>2022</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Trending Topics */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Topik Trending</h2>
-            <div className="flex flex-wrap gap-2">
-              {trendingTopics.map(topic => (
-                <button
-                  key={topic.name}
-                  onClick={() => {
-                    setQuery(topic.name)
-                    fetchNasaData(true)
-                  }}
-                  className="px-4 py-2 bg-gray-900/50 hover:bg-gray-800/70 rounded-xl flex items-center gap-2 transition-all"
-                >
-                  <span>{topic.icon}</span>
-                  <span>#{topic.name}</span>
-                  <span className="text-xs text-gray-400">{topic.count}</span>
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
-      </div>
-      
-      {/* Main Content */}
-      <div className="container mx-auto px-4 pb-12">
-        {/* Results Info */}
-        <div className="mb-6 p-4 bg-gray-900/30 rounded-xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-300">
-                Menampilkan <span className="text-white font-bold">{filteredItems.length}</span> gambar NASA
-                {activeCategory !== 'all' && (
-                  <span> dalam kategori <span className="text-purple-400">{activeCategory}</span></span>
-                )}
-              </p>
-              <p className="text-gray-500 text-sm mt-1">Data langsung dari NASA Image Library</p>
+
+        {/* Stats */}
+        <div style={{
+          display: 'flex',
+          gap: '16px',
+          marginBottom: '24px',
+          padding: '16px',
+          background: 'rgba(255,255,255,0.03)',
+          borderRadius: '16px',
+          border: '1px solid rgba(255,255,255,0.05)'
+        }}>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#7c3aed' }}>
+              {stats.totalItems.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-400">
-              Halaman {page - 1} • {loadingMore ? 'Memuat lebih banyak...' : 'Siap'}
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Total Gambar</div>
+          </div>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#0ea5e9' }}>
+              {stats.totalLikes.toLocaleString()}
             </div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Total Suka</div>
+          </div>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
+              {stats.totalViews.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Total Dilihat</div>
           </div>
         </div>
-        
-        {/* Content Grid/List */}
+
+        {/* Content */}
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="text-center">
-              <div className="h-16 w-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-gray-400">Memuat gambar dari NASA...</p>
-            </div>
-          </div>
+          <SkeletonGrid />
         ) : filteredItems.length === 0 ? (
-          <div className="text-center py-20">
-            <Telescope className="h-20 w-20 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-2xl font-semibold text-gray-300 mb-2">Tidak ada gambar ditemukan</h3>
-            <p className="text-gray-500 mb-6">Coba kata kunci yang berbeda atau pilih kategori lain</p>
+          <div className="fd-card" style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌌</div>
+            <h3 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>
+              Tidak ada gambar ditemukan
+            </h3>
+            <p style={{ color: 'rgba(255,255,255,0.5)' }}>
+              Coba kata kunci yang berbeda atau pilih kategori lain
+            </p>
             <button
               onClick={() => {
-                setQuery('space')
+                setQuery('')
                 setActiveCategory('all')
                 fetchNasaData(true)
               }}
-              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all"
+              className="fd-btn fd-btn-primary"
+              style={{ marginTop: '16px' }}
             >
-              Tampilkan Semua Gambar
+              Tampilkan Semua
             </button>
           </div>
         ) : viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="fd-grid">
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                className="group bg-gray-900/50 rounded-2xl overflow-hidden hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 border border-gray-800/50 hover:border-purple-500/30"
+                className="fd-card-nasa"
+                onClick={() => setSelectedItem(item)}
               >
-                {/* Image Container */}
-                <div className="relative h-56 overflow-hidden">
+                <div className="fd-img-container">
                   <img
                     src={item.image}
                     alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    className="fd-img"
                     onError={(e) => {
                       e.currentTarget.src = 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2070&auto=format&fit=crop'
                     }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-                  
-                  {/* Image Overlay Info */}
-                  <div className="absolute top-3 left-3">
-                    <span className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-lg text-xs">
-                      {item.media_type === 'image' ? '📷 Gambar' : '🎥 Video'}
+                  <div className="fd-overlay">
+                    <span className="fd-badge">
+                      {item.media_type === 'image' ? '📷' : '🎥'}
                     </span>
-                  </div>
-                  
-                  {/* Quick Actions */}
-                  <div className="absolute top-3 right-3 flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleLike(item.id)
-                      }}
-                      className={`p-2 rounded-full bg-black/60 backdrop-blur-sm hover:bg-black/80 transition-colors ${
-                        item.isLiked ? 'text-red-400' : 'text-white'
-                      }`}
-                    >
-                      <Heart className={`h-4 w-4 ${item.isLiked ? 'fill-current' : ''}`} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedItem(item)
-                      }}
-                      className="p-2 rounded-full bg-black/60 backdrop-blur-sm hover:bg-black/80 text-white"
-                    >
-                      <Maximize2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  
-                  {/* View Count */}
-                  <div className="absolute bottom-3 left-3 flex items-center gap-1 text-white text-sm">
-                    <Eye className="h-4 w-4" />
-                    <span>{item.views.toLocaleString()}</span>
+                    {item.category && (
+                      <span className="fd-badge" style={{ background: 'rgba(14,165,233,0.3)' }}>
+                        #{item.category}
+                      </span>
+                    )}
                   </div>
                 </div>
-                
-                {/* Content */}
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2 text-gray-400 text-sm">
-                      <Calendar className="h-4 w-4" />
-                      <span>{item.date}</span>
-                    </div>
-                    {item.photographer && (
-                      <div className="flex items-center gap-1 text-gray-400 text-sm">
-                        <User className="h-4 w-4" />
-                        <span className="truncate max-w-[80px]">{item.photographer}</span>
-                      </div>
-                    )}
+                <div className="fd-content">
+                  <h3 className="fd-title-sm">{item.title}</h3>
+                  <div className="fd-meta">
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Calendar style={{ width: '12px', height: '12px' }} />
+                      {item.date}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Eye style={{ width: '12px', height: '12px' }} />
+                      {item.views.toLocaleString()}
+                    </span>
                   </div>
-                  
-                  <h3 className="font-bold text-lg mb-2 line-clamp-1">{item.title}</h3>
-                  <p className="text-gray-400 text-sm mb-4 line-clamp-2">{item.description}</p>
-                  
-                  {/* Keywords */}
-                  <div className="flex flex-wrap gap-1 mb-4">
-                    {item.keywords.slice(0, 3).map((keyword, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-gray-800/50 text-gray-300 text-xs rounded-lg">
-                        #{keyword}
-                      </span>
-                    ))}
-                    {item.keywords.length > 3 && (
-                      <span className="px-2 py-1 bg-gray-800/50 text-gray-400 text-xs rounded-lg">
-                        +{item.keywords.length - 3}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                  <p className="fd-desc">{item.description.substring(0, 100)}...</p>
+                  <div className="fd-actions">
+                    <div style={{ display: 'flex', gap: '4px' }}>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleLike(item.id)
-                        }}
-                        className={`flex items-center gap-1 ${
-                          item.isLiked ? 'text-red-400' : 'text-gray-400 hover:text-red-400'
-                        }`}
+                        className={`fd-act ${item.isLiked ? 'liked' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); handleLike(item.id); }}
                       >
-                        <Heart className={`h-5 w-5 ${item.isLiked ? 'fill-current' : ''}`} />
-                        <span className="text-sm">{item.likes.toLocaleString()}</span>
+                        <Heart style={{ width: '15px', height: '15px' }} fill={item.isLiked ? 'currentColor' : 'none'} />
+                        {item.likes}
                       </button>
-                      
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleBookmark(item.id)
-                        }}
-                        className={`p-2 ${item.isBookmarked ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'}`}
+                        className="fd-act"
+                        onClick={(e) => { e.stopPropagation(); handleBookmark(item.id); }}
                       >
-                        <Bookmark className={`h-5 w-5 ${item.isBookmarked ? 'fill-current' : ''}`} />
+                        <Bookmark style={{ width: '15px', height: '15px' }} fill={item.isBookmarked ? 'currentColor' : 'none'} />
                       </button>
                     </div>
-                    
-                    <div className="flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleShare(item)
-                        }}
-                        className="p-2 text-gray-400 hover:text-blue-400"
-                      >
-                        <Share2 className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDownload(item.image, item.title)
-                        }}
-                        className="p-2 text-gray-400 hover:text-green-400"
-                      >
-                        <Download className="h-5 w-5" />
-                      </button>
-                    </div>
+                    <button
+                      className="fd-act"
+                      onClick={(e) => { e.stopPropagation(); handleShare(item); }}
+                    >
+                      <Share2 style={{ width: '15px', height: '15px' }} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -749,81 +1400,68 @@ export default function NasaPage() {
           </div>
         ) : (
           // List View
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                className="bg-gray-900/50 rounded-2xl overflow-hidden hover:bg-gray-800/30 transition-all group"
+                className="fd-card"
+                style={{ padding: '16px', cursor: 'pointer' }}
+                onClick={() => setSelectedItem(item)}
               >
-                <div className="flex flex-col md:flex-row">
-                  <div className="md:w-64 md:h-48 h-40 flex-shrink-0">
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <div style={{ width: '120px', height: '120px', flexShrink: 0 }}>
                     <img
                       src={item.image}
                       alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2070&auto=format&fit=crop'
+                      }}
                     />
                   </div>
-                  <div className="flex-1 p-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="text-xl font-bold mb-2">{item.title}</h3>
-                        <div className="flex items-center gap-4 text-sm text-gray-400 mb-3">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            <span>{item.date}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Eye className="h-4 w-4" />
-                            <span>{item.views.toLocaleString()} views</span>
-                          </div>
-                          {item.source && (
-                            <div className="flex items-center gap-1">
-                              <Globe className="h-4 w-4" />
-                              <span>{item.source}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleLike(item.id)}
-                          className={`p-2 rounded-lg ${item.isLiked ? 'text-red-400 bg-red-500/10' : 'text-gray-400 hover:text-red-400'}`}
-                        >
-                          <Heart className={`h-5 w-5 ${item.isLiked ? 'fill-current' : ''}`} />
-                        </button>
-                        <button
-                          onClick={() => handleBookmark(item.id)}
-                          className={`p-2 rounded-lg ${item.isBookmarked ? 'text-yellow-400 bg-yellow-500/10' : 'text-gray-400 hover:text-yellow-400'}`}
-                        >
-                          <Bookmark className={`h-5 w-5 ${item.isBookmarked ? 'fill-current' : ''}`} />
-                        </button>
-                      </div>
+                  <div style={{ flex: 1, minWidth: '250px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                        {item.title}
+                      </h3>
+                      {item.category && (
+                        <span className="category-chip">#{item.category}</span>
+                      )}
                     </div>
-                    
-                    <p className="text-gray-300 mb-4 line-clamp-2">{item.description}</p>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-wrap gap-2">
-                        {item.keywords.slice(0, 4).map((keyword, idx) => (
-                          <span key={idx} className="px-2 py-1 bg-gray-800 text-gray-300 text-xs rounded-lg">
-                            #{keyword}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setSelectedItem(item)}
-                          className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all text-sm"
-                        >
-                          Lihat Detail
-                        </button>
-                        <button
-                          onClick={() => handleDownload(item.image, item.title)}
-                          className="px-4 py-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors text-sm"
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                      </div>
+                    <div style={{ display: 'flex', gap: '16px', marginBottom: '8px', fontSize: '13px', color: 'rgba(255,255,255,0.5)', flexWrap: 'wrap' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Calendar style={{ width: '12px', height: '12px' }} />
+                        {item.date}
+                      </span>
+                      <span>{item.source}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Eye style={{ width: '12px', height: '12px' }} />
+                        {item.views.toLocaleString()}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginBottom: '12px' }}>
+                      {item.description.substring(0, 150)}...
+                    </p>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <button
+                        className={`fd-act ${item.isLiked ? 'liked' : ''}`}
+                        onClick={(e) => { e.stopPropagation(); handleLike(item.id); }}
+                      >
+                        <Heart style={{ width: '16px', height: '16px' }} fill={item.isLiked ? 'currentColor' : 'none'} />
+                        {item.likes}
+                      </button>
+                      <button
+                        className="fd-act"
+                        onClick={(e) => { e.stopPropagation(); handleBookmark(item.id); }}
+                      >
+                        <Bookmark style={{ width: '16px', height: '16px' }} fill={item.isBookmarked ? 'currentColor' : 'none'} />
+                      </button>
+                      <button
+                        className="fd-act"
+                        onClick={(e) => { e.stopPropagation(); handleShare(item); }}
+                      >
+                        <Share2 style={{ width: '16px', height: '16px' }} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -831,162 +1469,262 @@ export default function NasaPage() {
             ))}
           </div>
         )}
-        
-        {/* Load More Observer */}
+
+        {/* Load More */}
         {!loading && filteredItems.length > 0 && (
-          <div ref={observerRef} className="py-8 text-center">
+          <div ref={observerRef} style={{ textAlign: 'center', padding: '30px 0' }}>
             {loadingMore ? (
-              <div className="inline-flex items-center gap-2 text-gray-400">
-                <div className="h-5 w-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                Memuat lebih banyak gambar...
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <div className="fd-spinner" style={{ width: '24px', height: '24px' }}></div>
+                <span style={{ color: 'rgba(255,255,255,0.6)' }}>Memuat lebih banyak gambar...</span>
               </div>
             ) : (
               <button
                 onClick={() => fetchNasaData()}
-                className="px-8 py-3 bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-xl hover:from-purple-600/30 hover:to-blue-600/30 transition-all"
+                className="fd-btn fd-btn-primary"
+                style={{ padding: '12px 30px' }}
               >
                 Muat Lebih Banyak
               </button>
             )}
           </div>
         )}
-        
+
         {/* Modal Detail */}
         {selectedItem && (
-          <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
-            <div className="bg-gray-900 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gray-900 p-6 border-b border-gray-800 flex justify-between items-center">
-                <h2 className="text-2xl font-bold">{selectedItem.title}</h2>
+          <div className="fd-modal" onClick={() => setSelectedItem(null)}>
+            <div className="fd-modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="fd-modal-header">
+                <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>{selectedItem.title}</h2>
                 <button
                   onClick={() => setSelectedItem(null)}
-                  className="p-2 rounded-full hover:bg-gray-800"
+                  style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
                 >
-                  <X className="h-6 w-6" />
+                  <X style={{ width: '20px', height: '20px' }} />
                 </button>
               </div>
               
-              <div className="p-6">
-                <div className="relative h-[60vh] rounded-xl overflow-hidden mb-6">
+              <div className="fd-modal-body">
+                <div style={{ marginBottom: '20px' }}>
                   <img
                     src={selectedItem.image}
                     alt={selectedItem.title}
-                    className="w-full h-full object-contain"
+                    style={{ width: '100%', maxHeight: '500px', objectFit: 'contain', borderRadius: '12px' }}
                   />
-                  <div className="absolute bottom-4 left-4 flex gap-2">
-                    <button
-                      onClick={() => handleLike(selectedItem.id)}
-                      className={`p-3 rounded-full bg-black/70 hover:bg-black/90 ${
-                        selectedItem.isLiked ? 'text-red-400' : 'text-white'
-                      }`}
-                    >
-                      <Heart className={`h-6 w-6 ${selectedItem.isLiked ? 'fill-current' : ''}`} />
-                    </button>
-                    <button
-                      onClick={() => handleBookmark(selectedItem.id)}
-                      className={`p-3 rounded-full bg-black/70 hover:bg-black/90 ${
-                        selectedItem.isBookmarked ? 'text-yellow-400' : 'text-white'
-                      }`}
-                    >
-                      <Bookmark className={`h-6 w-6 ${selectedItem.isBookmarked ? 'fill-current' : ''}`} />
-                    </button>
-                    <button
-                      onClick={() => handleDownload(selectedItem.image, selectedItem.title)}
-                      className="p-3 rounded-full bg-black/70 hover:bg-black/90 text-white"
-                    >
-                      <Download className="h-6 w-6" />
-                    </button>
-                  </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  <div className="bg-gray-800/30 p-4 rounded-xl">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Calendar className="h-5 w-5 text-purple-400" />
-                      <div>
-                        <p className="text-sm text-gray-400">Tanggal</p>
-                        <p className="font-medium">{selectedItem.date}</p>
-                      </div>
-                    </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                  <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px' }}>
+                    <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '4px' }}>Tanggal</div>
+                    <div style={{ fontSize: '14px' }}>{selectedItem.date}</div>
                   </div>
-                  
                   {selectedItem.photographer && (
-                    <div className="bg-gray-800/30 p-4 rounded-xl">
-                      <div className="flex items-center gap-3 mb-2">
-                        <User className="h-5 w-5 text-blue-400" />
-                        <div>
-                          <p className="text-sm text-gray-400">Fotografer</p>
-                          <p className="font-medium">{selectedItem.photographer}</p>
-                        </div>
-                      </div>
+                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px' }}>
+                      <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '4px' }}>Fotografer</div>
+                      <div style={{ fontSize: '14px' }}>{selectedItem.photographer}</div>
                     </div>
                   )}
-                  
-                  <div className="bg-gray-800/30 p-4 rounded-xl">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Globe className="h-5 w-5 text-green-400" />
-                      <div>
-                        <p className="text-sm text-gray-400">Sumber</p>
-                        <p className="font-medium">{selectedItem.source}</p>
-                      </div>
-                    </div>
+                  <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px' }}>
+                    <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '4px' }}>Sumber</div>
+                    <div style={{ fontSize: '14px' }}>{selectedItem.source}</div>
                   </div>
+                  {selectedItem.category && (
+                    <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px' }}>
+                      <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '4px' }}>Kategori</div>
+                      <div style={{ fontSize: '14px' }}>#{selectedItem.category}</div>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="bg-gray-800/30 p-6 rounded-xl mb-6">
-                  <h3 className="text-xl font-semibold mb-4">Deskripsi</h3>
-                  <p className="text-gray-300 leading-relaxed">{selectedItem.description}</p>
+                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>Deskripsi NASA</h3>
+                  <p style={{ color: 'rgba(255,255,255,0.8)', lineHeight: '1.6' }}>
+                    {selectedItem.description}
+                  </p>
                 </div>
                 
-                {/* Keywords */}
-                <div className="mb-6">
-                  <h3 className="text-xl font-semibold mb-4">Kata Kunci</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedItem.keywords.map((keyword, idx) => (
-                      <span key={idx} className="px-4 py-2 bg-gradient-to-r from-purple-600/20 to-blue-600/20 text-purple-300 rounded-xl border border-purple-500/30">
-                        #{keyword}
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>Kata Kunci</h3>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {selectedItem.keywords.slice(0, 15).map((kw, i) => (
+                      <span key={i} style={{
+                        padding: '4px 12px',
+                        background: 'rgba(124,58,237,0.2)',
+                        border: '1px solid rgba(124,58,237,0.3)',
+                        borderRadius: '20px',
+                        fontSize: '12px'
+                      }}>
+                        #{kw.replace(/\s+/g, '')}
                       </span>
                     ))}
                   </div>
                 </div>
                 
-                {/* Action Buttons */}
-                <div className="flex flex-wrap gap-4 pt-6 border-t border-gray-800">
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px' }}>
                   <a
                     href={selectedItem.image}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all flex items-center gap-2"
+                    className="fd-btn fd-btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
-                    <ExternalLink className="h-5 w-5" />
-                    Buka di Tab Baru
+                    <ExternalLink style={{ width: '16px', height: '16px' }} />
+                    Buka Gambar
                   </a>
                   <button
                     onClick={() => handleDownload(selectedItem.image, selectedItem.title)}
-                    className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all flex items-center gap-2"
+                    className="fd-btn fd-btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
-                    <Download className="h-5 w-5" />
-                    Unduh Gambar HD
+                    <Download style={{ width: '16px', height: '16px' }} />
+                    Unduh
                   </button>
                   <button
                     onClick={() => handleShare(selectedItem)}
-                    className="px-6 py-3 bg-gray-800 rounded-xl hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    className="fd-btn fd-btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
-                    <Share2 className="h-5 w-5" />
+                    <Share2 style={{ width: '16px', height: '16px' }} />
                     Bagikan
+                  </button>
+                  <button
+                    onClick={() => setShowPostModal(true)}
+                    className="fd-btn fd-btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <Users style={{ width: '16px', height: '16px' }} />
+                    Posting ke Komunitas
                   </button>
                 </div>
               </div>
             </div>
           </div>
         )}
-        
-        {/* Footer Info */}
-        <div className="mt-12 pt-8 border-t border-gray-800/50">
-          <div className="text-center text-gray-500">
-            <p className="mb-2">🌌 Data gambar disediakan oleh NASA Image and Video Library API</p>
-            <p className="text-sm">Gunakan untuk tujuan edukasi dan eksplorasi alam semesta</p>
+
+        {/* Modal Posting */}
+        {showPostModal && selectedItem && (
+          <div className="fd-modal" onClick={() => setShowPostModal(false)}>
+            <div className="fd-post-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="fd-modal-header">
+                <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>Buat Postingan</h3>
+                <button
+                  onClick={() => setShowPostModal(false)}
+                  style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
+                >
+                  <X style={{ width: '18px', height: '18px' }} />
+                </button>
+              </div>
+              
+              <div style={{ padding: '20px' }}>
+                {/* Preview Gambar */}
+                <div style={{
+                  marginBottom: '16px',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  border: '1px solid rgba(255,255,255,0.1)'
+                }}>
+                  <img
+                    src={selectedItem.image}
+                    alt={selectedItem.title}
+                    style={{ width: '100%', height: '180px', objectFit: 'cover' }}
+                  />
+                </div>
+                
+                {/* Info Gambar */}
+                <div style={{ marginBottom: '16px', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
+                  <div><strong style={{ color: '#7c3aed' }}>Judul:</strong> {selectedItem.title}</div>
+                  <div><strong style={{ color: '#0ea5e9' }}>Tanggal:</strong> {selectedItem.date}</div>
+                  <div><strong style={{ color: '#10b981' }}>Kategori:</strong> #{selectedItem.category || 'NASA'}</div>
+                </div>
+                
+                {/* Preview Deskripsi NASA */}
+                <div className="nasa-description-preview">
+                  <strong>📝 Deskripsi NASA:</strong> {selectedItem.description.substring(0, 120)}...
+                </div>
+                
+                {/* Konten (bisa diisi user) */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '4px' }}>
+                    Tambah komentarmu (opsional)
+                  </label>
+                  <textarea
+                    value={postContent}
+                    onChange={(e) => setPostContent(e.target.value)}
+                    placeholder="Tulis cerita atau komentarmu tentang gambar ini..."
+                    className="fd-ta"
+                    rows={3}
+                  />
+                </div>
+                
+                {/* Preview hasil postingan */}
+                <div style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  color: 'rgba(255,255,255,0.7)',
+                  border: '1px dashed rgba(255,255,255,0.1)'
+                }}>
+                  <strong>📋 Preview postingan:</strong><br/>
+                  <span style={{ color: '#7c3aed' }}>{selectedItem.title}</span><br/>
+                  <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>{selectedItem.date} • {selectedItem.source}</span><br/>
+                  <span>{selectedItem.description.substring(0, 80)}...{postContent && <><br/><span style={{ color: '#0ea5e9' }}>Komentar: {postContent}</span></>}</span>
+                </div>
+                
+                {/* Info login */}
+                {!user && !authLoading && (
+                  <div style={{
+                    marginBottom: '16px',
+                    padding: '12px',
+                    background: 'rgba(245,158,11,0.1)',
+                    border: '1px solid rgba(245,158,11,0.3)',
+                    borderRadius: '8px',
+                    color: '#f59e0b',
+                    fontSize: '13px'
+                  }}>
+                    ⚠️ Kamu harus login untuk bisa posting ke komunitas
+                  </div>
+                )}
+                
+                {authLoading && (
+                  <div style={{ textAlign: 'center', padding: '10px' }}>
+                    <div className="fd-spinner" style={{ width: '24px', height: '24px', margin: '0 auto' }}></div>
+                  </div>
+                )}
+                
+                {/* Tombol */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => setShowPostModal(false)}
+                    className="fd-btn fd-btn-secondary"
+                    style={{ flex: 1 }}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleShareToPost}
+                    disabled={posting || !user || authLoading}
+                    className="fd-btn fd-btn-primary"
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    {posting ? (
+                      <>
+                        <div className="fd-spinner" style={{ width: '16px', height: '16px' }}></div>
+                        Memproses...
+                      </>
+                    ) : (
+                      <>
+                        <Send style={{ width: '16px', height: '16px' }} />
+                        Posting
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
