@@ -30,7 +30,7 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
   // ✅ LANDING PAGE — always allow
@@ -59,7 +59,7 @@ export async function middleware(request: NextRequest) {
   ]
 
   if (protectedPaths.some(p => path.startsWith(p))) {
-    if (!session) {
+    if (!user) {
       return NextResponse.redirect(new URL('/', request.url))
     }
     return response
