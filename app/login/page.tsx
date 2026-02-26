@@ -217,23 +217,24 @@ export default function LoginPage() {
     }
   };
 
-  const handleOAuth = async (provider: 'google' | 'github') => {
-    setOauthLoading(provider);
-    try {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${siteUrl}/login`, // ✅ Redirect balik ke login, bukan callback
-        },
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      toast.error(err.message || `${provider} login gagal`);
-      setOauthLoading(null);
-    }
-  };
+ const handleOAuth = async (provider: 'google' | 'github') => {
+  setOauthLoading(provider);
+  try {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
 
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${siteUrl}/auth/callback?next=/feed`,
+      },
+    });
+
+    if (error) throw error;
+  } catch (err: any) {
+    toast.error(err.message || `${provider} login gagal`);
+    setOauthLoading(null);
+  }
+};
   return (
     <div className="sh-root">
       <style>{`
