@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { useAuth } from '@/app/contexts/AuthContext'
-import { useTheme } from '@/app/contexts/ThemeContext' // ← TAMBAHKAN
+import { useTheme } from '@/app/contexts/ThemeContext'
 import {
   Rocket, LayoutDashboard, Sparkles, Compass, Users, Star, Bell, Search,
   LogOut, Settings, User, ChevronDown, Heart, MessageCircle, UserPlus,
-  Moon, Sun, Monitor // ← TAMBAHKAN ICON THEME
+  Moon, Sun, Menu, X
 } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
@@ -35,23 +35,25 @@ function Logo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 /* ─────────────────────────────────────────────────────
-   LANDING NAVBAR
+   LANDING NAVBAR  ←  REDESIGNED: DOCK BLUR STYLE
 ───────────────────────────────────────────────────── */
 function LandingNav({ user }: { user: any }) {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const handleScroll = useCallback(() => {
-    setScrolled(window.scrollY > 50)
+    setScrolled(window.scrollY > 30)
   }, [])
 
   useEffect(() => {
+    setMounted(true)
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
   useEffect(() => {
-    const fn = () => { if (window.innerWidth >= 768) setMobileOpen(false) }
+    const fn = () => { if (window.innerWidth >= 640) setMobileOpen(false) }
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
   }, [])
@@ -64,68 +66,79 @@ function LandingNav({ user }: { user: any }) {
   return (
     <>
       <NavStyles />
-      <nav className={`sh-nav sh-nav--landing ${scrolled ? 'sh-nav--scrolled' : ''}`}>
-        <div className="sh-nav__bar">
-          <Logo />
-          <div className="sh-nav__links sh-nav__links--desktop">
-            {links.map(l => (
-              <a key={l.label} href={l.href} className="nav-link">{l.label}</a>
-            ))}
+      <div className={`dock-wrapper ${mounted ? 'dock-mounted' : ''} ${scrolled ? 'dock-scrolled' : ''}`}>
+        <nav className="dock-nav">
+          <div className="dock-blur-base" />
+          <div className="dock-blur-tint" />
+          <div className="dock-blur-rim" />
+          <div className="dock-inner">
+            <Logo />
+
+            {/* Links desktop */}
+            <div className="dock-links">
+              {links.map(l => (
+                <a key={l.label} href={l.href} className="dock-link">{l.label}</a>
+              ))}
+            </div>
+
+            {/* Actions desktop */}
+            <div className="dock-actions">
+              {user ? (
+                <>
+                  <Link href="/feed" className="dock-link">Feed</Link>
+                  <Link href="/feed" className="dock-btn">
+                    <Sparkles style={{ width: 12, height: 12 }} /> Launch App
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/login" className="dock-link">Sign In</Link>
+                  <Link href="/register" className="dock-btn">
+                    <Sparkles style={{ width: 12, height: 12 }} /> Get Started
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {/* Mobile toggle */}
+            <button
+              className="dock-mobile-toggle"
+              onClick={() => setMobileOpen(v => !v)}
+              aria-label="Toggle menu"
+            >
+              {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
           </div>
-          <div className="sh-nav__actions sh-nav__actions--desktop">
+        </nav>
+
+        {/* Mobile drawer */}
+        <div className={`dock-drawer ${mobileOpen ? 'is-open' : ''}`}>
+          <div className="dock-drawer-blur" />
+          <div className="dock-drawer-content">
+            {links.map(l => (
+              <a key={l.label} href={l.href} className="dock-drawer-link"
+                onClick={() => setMobileOpen(false)}>{l.label}</a>
+            ))}
+            <div className="dock-drawer-sep" />
             {user ? (
               <>
-                <Link href="/feed" className="nav-link">Feed</Link>
-                <Link href="/feed" className="nav-btn-primary">
-                  <Sparkles style={{ width: 13, height: 13 }} />
-                  Go to Feed
+                <Link href="/feed" className="dock-drawer-link" onClick={() => setMobileOpen(false)}>Feed</Link>
+                <Link href="/profile" className="dock-drawer-link" onClick={() => setMobileOpen(false)}>Profile</Link>
+                <Link href="/feed" className="dock-btn dock-btn--full" onClick={() => setMobileOpen(false)}>
+                  <Sparkles size={12} /> Launch App
                 </Link>
               </>
             ) : (
               <>
-                <Link href="/login" className="nav-link">Sign In</Link>
-                <Link href="/register" className="nav-btn-primary">
-                  <Sparkles style={{ width: 13, height: 13 }} />
-                  Get Started
-                </Link>
-              </>
-            )}
-          </div>
-          <button
-            className={`nav-mobile-toggle ${mobileOpen ? 'is-open' : ''}`}
-            onClick={() => setMobileOpen(v => !v)}
-            aria-label="Toggle menu"
-          >
-            <span className="ham-line ham-line--1" />
-            <span className="ham-line ham-line--2" />
-            <span className="ham-line ham-line--3" />
-          </button>
-        </div>
-        <div className={`nav-mobile-drawer ${mobileOpen ? 'is-open' : ''}`}>
-          <div className="nav-mobile-inner">
-            {links.map(l => (
-              <a key={l.label} href={l.href} className="nav-mobile-link" onClick={() => setMobileOpen(false)}>{l.label}</a>
-            ))}
-            <div className="nav-mobile-divider" />
-            {user ? (
-              <>
-                <Link href="/feed" className="nav-mobile-link" onClick={() => setMobileOpen(false)}>Feed</Link>
-                <Link href="/profile" className="nav-mobile-link" onClick={() => setMobileOpen(false)}>Profile</Link>
-                <Link href="/feed" className="nav-btn-primary nav-btn-full" onClick={() => setMobileOpen(false)}>
-                  <Sparkles style={{ width: 13, height: 13 }} /> Go to Feed
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link href="/login" className="nav-mobile-link" onClick={() => setMobileOpen(false)}>Sign In</Link>
-                <Link href="/register" className="nav-btn-primary nav-btn-full" onClick={() => setMobileOpen(false)}>
-                  <Sparkles style={{ width: 13, height: 13 }} /> Get Started Free
+                <Link href="/login" className="dock-drawer-link" onClick={() => setMobileOpen(false)}>Sign In</Link>
+                <Link href="/register" className="dock-btn dock-btn--full" onClick={() => setMobileOpen(false)}>
+                  <Sparkles size={12} /> Get Started Free
                 </Link>
               </>
             )}
           </div>
         </div>
-      </nav>
+      </div>
     </>
   )
 }
@@ -168,7 +181,7 @@ interface NotifItem {
 ───────────────────────────────────────────────────── */
 function AppNav() {
   const { user, logout } = useAuth()
-  const { theme, toggleTheme } = useTheme() // ← TAMBAHKAN
+  const { theme, toggleTheme } = useTheme()
   const supabase = createClient()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
@@ -183,7 +196,6 @@ function AppNav() {
 
   const unreadCount = notifications.filter(n => !n.is_read).length
 
-  // Fetch avatar dari profiles table
   useEffect(() => {
     if (!user?.id) return
     supabase
@@ -352,8 +364,8 @@ function AppNav() {
 
           <div className="sh-nav__actions">
             {/* THEME TOGGLE */}
-            <button 
-              className="nav-icon-btn" 
+            <button
+              className="nav-icon-btn"
               onClick={toggleTheme}
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
@@ -553,14 +565,12 @@ function NavStyles() {
       @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500&display=swap');
 
       :root {
-        /* Dark theme (default) */
         --nav-bg: rgba(5,8,16,0.78);
         --nav-border: rgba(255,255,255,0.07);
         --nav-text: rgba(180,185,220,0.7);
         --nav-text-hover: rgba(240,240,255,0.95);
         --nav-accent: #6366f1;
       }
-
       [data-theme="light"] {
         --nav-bg: rgba(255,255,255,0.85);
         --nav-border: rgba(0,0,0,0.07);
@@ -569,10 +579,181 @@ function NavStyles() {
         --nav-accent: #7c3aed;
       }
 
+      /* ══════════════════════════════════════════
+         DOCK LANDING NAV STYLES
+      ══════════════════════════════════════════ */
+      .dock-wrapper {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 16px;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(-12px);
+        transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.16,1,0.3,1);
+      }
+      .dock-wrapper.dock-mounted { opacity: 1; transform: translateY(0); }
+
+      .dock-nav {
+        position: relative;
+        pointer-events: auto;
+        border-radius: 24px;
+        overflow: hidden;
+        transition: box-shadow 0.4s ease;
+        will-change: transform;
+      }
+      .dock-wrapper:not(.dock-scrolled) .dock-nav {
+        box-shadow:
+          0 0 0 1px rgba(255,255,255,0.07),
+          0 2px 4px rgba(0,0,0,0.25),
+          0 8px 24px rgba(0,0,0,0.4);
+      }
+      .dock-wrapper.dock-scrolled .dock-nav {
+        box-shadow:
+          0 0 0 1px rgba(255,255,255,0.12),
+          0 4px 6px -1px rgba(0,0,0,0.45),
+          0 16px 48px -8px rgba(0,0,0,0.7),
+          0 0 80px -20px rgba(99,102,241,0.3);
+      }
+
+      .dock-blur-base {
+        position: absolute; inset: 0; z-index: 0;
+        backdrop-filter: blur(52px) saturate(240%) brightness(0.50) contrast(1.1);
+        -webkit-backdrop-filter: blur(52px) saturate(240%) brightness(0.50) contrast(1.1);
+      }
+      .dock-blur-tint {
+        position: absolute; inset: 0; z-index: 1;
+        background: linear-gradient(135deg,
+          rgba(15,18,45,0.82) 0%,
+          rgba(7,9,26,0.92) 40%,
+          rgba(12,15,40,0.87) 70%,
+          rgba(15,18,45,0.82) 100%
+        );
+        transition: background 0.5s ease;
+      }
+      .dock-wrapper.dock-scrolled .dock-blur-tint {
+        background: linear-gradient(135deg,
+          rgba(9,12,33,0.94) 0%,
+          rgba(4,6,18,0.97) 40%,
+          rgba(7,10,28,0.95) 70%,
+          rgba(9,12,33,0.94) 100%
+        );
+      }
+      .dock-blur-rim {
+        position: absolute; inset: 0; z-index: 2;
+        border-radius: inherit;
+        border: 1px solid rgba(255,255,255,0.09);
+        background: linear-gradient(180deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0.025) 20%, transparent 45%);
+        pointer-events: none;
+        transition: border-color 0.5s ease;
+      }
+      .dock-wrapper.dock-scrolled .dock-blur-rim { border-color: rgba(255,255,255,0.14); }
+
+      .dock-inner {
+        position: relative; z-index: 3;
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 14px 8px 12px;
+        height: 58px;
+      }
+
+      .dock-links {
+        display: none; align-items: center; gap: 2px; margin-left: 12px;
+      }
+      @media(min-width: 768px) { .dock-links { display: flex; } }
+
+      .dock-link {
+        display: flex; align-items: center;
+        padding: 7px 14px; border-radius: 12px;
+        font-size: 13.5px; font-weight: 500;
+        color: rgba(190,195,235,0.70);
+        text-decoration: none;
+        font-family: 'DM Sans', sans-serif;
+        white-space: nowrap;
+        transition: color 0.2s, background 0.2s;
+      }
+      .dock-link:hover { color: rgba(240,242,255,0.95); background: rgba(255,255,255,0.07); }
+
+      .dock-actions {
+        display: none; align-items: center; gap: 6px; margin-left: auto;
+      }
+      @media(min-width: 640px) { .dock-actions { display: flex; } }
+
+      .dock-btn {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 8px 18px; border-radius: 14px;
+        font-size: 13px; font-weight: 700;
+        color: #fff !important; text-decoration: none;
+        border: none; cursor: pointer;
+        font-family: 'Syne', sans-serif; letter-spacing: -0.01em;
+        white-space: nowrap; position: relative; overflow: hidden;
+        -webkit-text-fill-color: #fff;
+        background: linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #0ea5e9 100%);
+        box-shadow: 0 0 0 1px rgba(129,140,248,0.3), 0 2px 8px rgba(99,102,241,0.4), 0 0 20px rgba(99,102,241,0.2);
+        transition: transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275), box-shadow 0.3s;
+      }
+      .dock-btn::before {
+        content: ''; position: absolute; inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.18), transparent 60%);
+      }
+      .dock-btn:hover {
+        transform: translateY(-1.5px) scale(1.04);
+        box-shadow: 0 0 0 1px rgba(129,140,248,0.4), 0 4px 16px rgba(99,102,241,0.55), 0 0 36px rgba(99,102,241,0.3);
+      }
+      .dock-btn:active { transform: scale(0.97); }
+      .dock-btn--full { width: 100%; justify-content: center; }
+
+      .dock-mobile-toggle {
+        display: flex; align-items: center; justify-content: center;
+        width: 36px; height: 36px; border-radius: 11px;
+        border: 1px solid rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.05);
+        color: rgba(190,195,235,0.8);
+        cursor: pointer; margin-left: auto;
+        transition: background 0.2s, color 0.2s;
+      }
+      .dock-mobile-toggle:hover { background: rgba(255,255,255,0.10); color: #fff; }
+      @media(min-width: 640px) { .dock-mobile-toggle { display: none; } }
+
+      .dock-drawer {
+        position: relative; pointer-events: auto;
+        width: 100%; max-height: 0; overflow: hidden;
+        transition: max-height 0.4s cubic-bezier(0.16,1,0.3,1), opacity 0.3s ease;
+        opacity: 0; margin-top: 6px; border-radius: 20px;
+      }
+      .dock-drawer.is-open { max-height: 400px; opacity: 1; }
+      .dock-drawer-blur {
+        position: absolute; inset: 0;
+        backdrop-filter: blur(52px) saturate(220%) brightness(0.48);
+        -webkit-backdrop-filter: blur(52px) saturate(220%) brightness(0.48);
+        background: rgba(7,9,26,0.93);
+        border: 1px solid rgba(255,255,255,0.09);
+        border-radius: inherit;
+      }
+      .dock-drawer-content {
+        position: relative; z-index: 1;
+        padding: 10px; display: flex; flex-direction: column; gap: 3px;
+      }
+      .dock-drawer-link {
+        display: flex; align-items: center;
+        padding: 11px 14px; border-radius: 13px;
+        font-size: 14px; font-weight: 500;
+        color: rgba(190,195,235,0.75); text-decoration: none;
+        font-family: 'DM Sans', sans-serif; cursor: pointer;
+        border: none; background: none;
+        transition: background 0.18s, color 0.18s;
+      }
+      .dock-drawer-link:hover { background: rgba(255,255,255,0.06); color: rgba(240,242,255,0.95); }
+      .dock-drawer-sep { height: 1px; background: rgba(255,255,255,0.07); margin: 5px 4px; }
+
+      /* ══════════════════════════════════════════
+         SHARED / APP NAV STYLES (tidak diubah)
+      ══════════════════════════════════════════ */
       .sh-nav { position:fixed; top:0; left:0; right:0; z-index:1000; isolation:isolate; }
       .sh-nav::before { content:''; position:absolute; inset:0; transition:background 0.4s ease,border-color 0.4s ease,backdrop-filter 0.4s ease,box-shadow 0.4s ease; border-bottom:1px solid transparent; z-index:-1; }
-      .sh-nav--landing::before { background:transparent; backdrop-filter:none; -webkit-backdrop-filter:none; }
-      .sh-nav--landing.sh-nav--scrolled::before, .sh-nav--app::before, .sh-nav--auth::before { background:var(--nav-bg); backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%); border-bottom-color:var(--nav-border); box-shadow:0 1px 40px rgba(0,0,0,0.45); }
+      .sh-nav--app::before, .sh-nav--auth::before { background:var(--nav-bg); backdrop-filter:blur(20px) saturate(160%); -webkit-backdrop-filter:blur(20px) saturate(160%); border-bottom-color:var(--nav-border); box-shadow:0 1px 40px rgba(0,0,0,0.45); }
 
       .sh-nav__bar { position:relative; max-width:1200px; margin:0 auto; padding:0 20px; height:64px; display:flex; align-items:center; gap:16px; }
 
@@ -602,7 +783,6 @@ function NavStyles() {
       .nav-btn-primary:hover { transform:translateY(-1px) scale(1.04); box-shadow:0 0 24px rgba(99,102,241,0.45); }
       .nav-btn-primary:hover::before { opacity:1; }
       .nav-btn-primary:active { transform:scale(0.97); }
-      .nav-btn-full { width:100%; justify-content:center; }
 
       .nav-auth-status { display:flex; align-items:center; gap:8px; font-size:10px; color:rgba(160,165,200,0.5); text-transform:uppercase; letter-spacing:0.2em; font-weight:600; margin-left:auto; font-family:'Syne',sans-serif; }
       .nav-auth-dot { width:7px; height:7px; border-radius:50%; background:#10b981; box-shadow:0 0 8px rgba(16,185,129,0.7); animation:authPulse 2s ease-in-out infinite; }
@@ -612,26 +792,14 @@ function NavStyles() {
 
       .nav-icon-btn-wrap { position:relative; }
       .nav-icon-btn { position:relative; display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid var(--nav-border); background:rgba(255,255,255,0.04); color:var(--nav-text); cursor:pointer; transition:all 0.2s; }
-      .nav-icon-btn:hover { background:rgba(255,255,255,0.08); border-color:var(--nav-border); color:var(--nav-text-hover); }
+      .nav-icon-btn:hover { background:rgba(255,255,255,0.08); color:var(--nav-text-hover); }
 
-      .nav-notif-dot { 
-        position:absolute; top:-5px; right:-5px; 
-        min-width:16px; height:16px; border-radius:8px; 
-        background:#ef4444;
-        box-shadow:0 0 0 2px rgba(5,8,16,.95), 0 0 8px rgba(239,68,68,.6);
-        border:none;
-        font-size:9px; font-weight:800; color:#fff; 
-        display:flex; align-items:center; justify-content:center; 
-        padding:0 3px; font-family:'Syne',sans-serif; 
-        animation:notifPop 0.35s cubic-bezier(0.175,0.885,0.32,1.6) both; 
-        pointer-events:none; 
-        letter-spacing:0;
-      }
+      .nav-notif-dot { position:absolute; top:-5px; right:-5px; min-width:16px; height:16px; border-radius:8px; background:#ef4444; box-shadow:0 0 0 2px rgba(5,8,16,.95),0 0 8px rgba(239,68,68,.6); font-size:9px; font-weight:800; color:#fff; display:flex; align-items:center; justify-content:center; padding:0 3px; font-family:'Syne',sans-serif; animation:notifPop 0.35s cubic-bezier(0.175,0.885,0.32,1.6) both; pointer-events:none; }
       @keyframes notifPop { from{transform:scale(0)} to{transform:scale(1)} }
 
       .nav-profile-wrap { position:relative; }
       .nav-profile-btn { display:flex; align-items:center; gap:8px; padding:4px 12px 4px 4px; border-radius:12px; border:1px solid var(--nav-border); background:rgba(255,255,255,0.04); cursor:pointer; transition:background 0.2s,border-color 0.2s; }
-      .nav-profile-btn:hover, .nav-profile-btn.is-open { background:rgba(255,255,255,0.07); border-color:var(--nav-border); }
+      .nav-profile-btn:hover,.nav-profile-btn.is-open { background:rgba(255,255,255,0.07); }
       .nav-avatar { width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,#6366f1,#0ea5e9); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#fff; font-family:'Syne',sans-serif; flex-shrink:0; }
       .nav-avatar--lg { width:38px; height:38px; border-radius:11px; font-size:16px; }
       .nav-avatar--img { object-fit:cover; padding:0; background:none; font-size:0; }
@@ -654,7 +822,7 @@ function NavStyles() {
       .nav-dropdown-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 10px; border-bottom:1px solid var(--nav-border); }
       .nav-dropdown-title { font-size:12px; font-weight:700; color:var(--nav-text); font-family:'Syne',sans-serif; letter-spacing:0.04em; }
       .nav-badge-count { font-size:10px; font-weight:700; color:#a78bfa; background:rgba(167,139,250,0.12); border:1px solid rgba(167,139,250,0.2); padding:2px 8px; border-radius:100px; font-family:'Syne',sans-serif; }
-      .nav-notif-viewall { font-size:11px; font-weight:600; color:rgba(129,140,248,.7); text-decoration:none; transition:color .2s; font-family:'DM Sans',sans-serif; }
+      .nav-notif-viewall { font-size:11px; font-weight:600; color:rgba(129,140,248,.7); text-decoration:none; transition:color .2s; }
       .nav-notif-viewall:hover { color:#818cf8; }
 
       .nav-notif-list { max-height:320px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:rgba(129,140,248,.2) transparent; }
@@ -687,15 +855,15 @@ function NavStyles() {
       .nav-dropdown-item--danger:hover { background:rgba(239,68,68,0.08); color:rgba(252,165,165,0.9); }
       .nav-dropdown-sep { height:1px; background:var(--nav-border); margin:4px 0; }
 
-      .nav-mobile-toggle { display:flex; flex-direction:column; justify-content:center; align-items:center; gap:5px; width:38px; height:38px; border-radius:10px; border:1px solid var(--nav-border); background:rgba(255,255,255,0.04); cursor:pointer; padding:0; transition:background 0.2s,border-color 0.2s; flex-shrink:0; }
-      .nav-mobile-toggle:hover { background:rgba(255,255,255,0.07); border-color:var(--nav-border); }
+      .nav-mobile-toggle { display:flex; flex-direction:column; justify-content:center; align-items:center; gap:5px; width:38px; height:38px; border-radius:10px; border:1px solid var(--nav-border); background:rgba(255,255,255,0.04); cursor:pointer; padding:0; transition:background 0.2s; flex-shrink:0; }
+      .nav-mobile-toggle:hover { background:rgba(255,255,255,0.07); }
       @media(min-width:768px){ .nav-mobile-toggle { display:none; } }
-      .ham-line { display:block; width:18px; height:1.5px; border-radius:2px; background:var(--nav-text); transition:transform 0.3s cubic-bezier(0.16,1,0.3,1),opacity 0.3s ease,width 0.3s ease; transform-origin:center; }
+      .ham-line { display:block; width:18px; height:1.5px; border-radius:2px; background:var(--nav-text); transition:transform 0.3s cubic-bezier(0.16,1,0.3,1),opacity 0.3s,width 0.3s; transform-origin:center; }
       .nav-mobile-toggle.is-open .ham-line--1 { transform:translateY(6.5px) rotate(45deg); }
       .nav-mobile-toggle.is-open .ham-line--2 { opacity:0; transform:scaleX(0); }
       .nav-mobile-toggle.is-open .ham-line--3 { transform:translateY(-6.5px) rotate(-45deg); }
 
-      .nav-mobile-drawer { position:relative; overflow:hidden; max-height:0; transition:max-height 0.4s cubic-bezier(0.16,1,0.3,1),opacity 0.3s ease; opacity:0; }
+      .nav-mobile-drawer { position:relative; overflow:hidden; max-height:0; transition:max-height 0.4s cubic-bezier(0.16,1,0.3,1),opacity 0.3s; opacity:0; }
       .nav-mobile-drawer.is-open { max-height:520px; opacity:1; }
       .nav-mobile-inner { margin:0 12px 12px; padding:10px; border-radius:18px; border:1px solid var(--nav-border); background:var(--nav-bg); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); display:flex; flex-direction:column; gap:4px; }
       .nav-mobile-link { display:flex; align-items:center; padding:12px 16px; border-radius:12px; font-size:14px; font-weight:500; color:var(--nav-text); text-decoration:none; cursor:pointer; border:none; background:none; width:100%; text-align:left; transition:background 0.18s,color 0.18s; font-family:'DM Sans',sans-serif; }
