@@ -5,7 +5,7 @@ import {
   X, Heart, Bookmark, Share2, Download, ExternalLink, 
   Calendar, User, Globe, Clock, MessageCircle, Eye, 
   Maximize2, Send, Users, Loader2, AlertCircle,
-  Image as ImageIcon
+  Image as ImageIcon, Languages
 } from 'lucide-react'
 import { ExploreContent } from '../types'
 import { createClient } from '@/lib/supabase/client'
@@ -46,6 +46,10 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
   const [postContent, setPostContent] = useState('')
   const [posting, setPosting] = useState(false)
 
+  // State untuk terjemahan
+  const [tampilkanAsli, setTampilkanAsli] = useState(false)
+  const [deskripsiTerjemahan, setDeskripsiTerjemahan] = useState('')
+
   // Set gambar saat modal dibuka
   useEffect(() => {
     if (isOpen) {
@@ -56,6 +60,8 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
       }
       setImageError(false)
       setImageLoaded(false)
+      setTampilkanAsli(false)
+      setDeskripsiTerjemahan(content.description || '')
     }
   }, [isOpen, content])
 
@@ -71,12 +77,6 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
       document.body.style.overflow = 'auto'
     }
   }, [isOpen])
-
-  useEffect(() => {
-    if (content) {
-      setIsLiked(content.isLiked || false)
-    }
-  }, [content])
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -118,7 +118,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
             .insert({ user_id: currentUser.id, post_id: content.source_id })
         }
         setIsLiked(true)
-        toast.success('Berhasil disukai! ❤️')
+        toast.success('Berhasil disukai')
       }
       onLike?.(content.source_id, content.source_type)
     } catch (error) {
@@ -177,7 +177,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
             })
         }
         setIsSaved(true)
-        toast.success('Disimpan ke koleksi! 📌')
+        toast.success('Disimpan ke koleksi')
       }
       onSave?.(content.source_id, content.source_type)
     } catch (error) {
@@ -204,7 +204,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
       }
     } else {
       navigator.clipboard.writeText(url)
-      toast.success('Link disalin! 📋')
+      toast.success('Link disalin')
     }
   }
 
@@ -225,7 +225,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
       a.click()
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
-      toast.success('Gambar diunduh! ⬇️')
+      toast.success('Gambar diunduh')
     } catch (error) {
       toast.error('Gagal mengunduh gambar')
     }
@@ -234,13 +234,12 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
   // Handle share ke postingan
   const handleShareToPost = async () => {
     if (!currentUser) {
-      toast.error('Login dulu untuk posting!')
+      toast.error('Login dulu untuk posting')
       return
     }
 
     setPosting(true)
     try {
-      // Format tanggal Indonesia
       const dateObj = new Date(content.original_created_at)
       const formattedDate = dateObj.toLocaleDateString('id-ID', { 
         year: 'numeric', 
@@ -248,19 +247,21 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
         day: 'numeric' 
       })
       
-      // Gabungkan deskripsi dengan komen user
-      const userComment = postContent ? `\n\n**Komentar saya:**\n${postContent}` : ''
+      const userComment = postContent ? `\n\nKomentar saya:\n${postContent}` : ''
       
-      const fullContent = `🌌 **${content.title || 'Gambar NASA'}**\n\n📅 **Tanggal:** ${formattedDate}\n📸 **Sumber:** ${content.author_name || 'NASA'}\n🏷️ **Kategori:** ${content.source_type === 'nasa_apod' ? '#NASA' : '#Komunitas'}\n\n📝 **Deskripsi:**\n${content.description || ''}${userComment}\n\n${content.tags?.map(t => `#${t}`).join(' ') || '#RuangAngkasa #Astronomi'}`
+      const kategoriHashtag = content.source_type === 'nasa_apod' ? '#NASA' : '#Komunitas'
+      
+      const keywordsHashtags = content.tags?.map(t => `#${t}`).join(' ') || '#LuarAngkasa #Astronomi'
+      
+      const kontenLengkap = `${content.title || 'Gambar'}\n\nTanggal: ${formattedDate}\nSumber: ${content.author_name || 'NASA'}\nKategori: ${kategoriHashtag}\n\n${content.description || ''}${userComment}\n\n${keywordsHashtags}`
 
-      // Simpan ke tabel posts
       const { error } = await supabase
         .from('posts')
         .insert([
           {
             user_id: currentUser.id,
             title: `Jelajah: ${content.title || 'Gambar'}`,
-            content: fullContent,
+            content: kontenLengkap,
             image_url: currentImageUrl,
             category: 'explore'
           }
@@ -270,20 +271,23 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
       
       setShowPostModal(false)
       setPostContent('')
-      toast.success('Berhasil diposting ke feed! 🚀')
+      toast.success('Berhasil diposting')
       
     } catch (error) {
       console.error('Error posting:', error)
-      toast.error('Gagal memposting. Coba lagi!')
+      toast.error('Gagal memposting')
     } finally {
       setPosting(false)
     }
   }
 
   const handleImageError = () => {
-    console.log('Gambar error, pakai cadangan')
     setImageError(false)
     setCurrentImageUrl(FALLBACK_IMAGES[Math.floor(Math.random() * FALLBACK_IMAGES.length)])
+  }
+
+  const handleTerjemah = () => {
+    setTampilkanAsli(!tampilkanAsli)
   }
 
   const timeAgo = formatDistanceToNow(new Date(content.original_created_at), {
@@ -442,11 +446,16 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
             padding: 20px;
             margin-bottom: 24px;
           }
+          .description-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+          }
           .description-box h3 {
             font-size: 16px;
             font-weight: 700;
             color: white;
-            margin-bottom: 12px;
             font-family: 'Archivo Black', sans-serif;
           }
           .description-box p {
@@ -454,6 +463,26 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
             line-height: 1.8;
             font-size: 14px;
             white-space: pre-wrap;
+          }
+          .tombol-bahasa {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(124,58,237,0.2);
+            border: 1px solid rgba(124,58,237,0.3);
+            border-radius: 20px;
+            font-size: 12px;
+            color: #a78bfa;
+            cursor: pointer;
+          }
+          .tombol-bahasa:hover {
+            background: rgba(124,58,237,0.3);
+          }
+          .badge-asli {
+            background: rgba(16,185,129,0.2);
+            border-color: rgba(16,185,129,0.3);
+            color: #10b981;
           }
           .keywords {
             display: flex;
@@ -642,7 +671,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
             </div>
 
             <div className="modal-body">
-              {/* Image dengan fallback yang pasti muncul */}
+              {/* Image */}
               <div className="modal-image">
                 {!imageLoaded && (
                   <div className="image-loader">
@@ -710,13 +739,22 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
                 </div>
               </div>
 
-              {/* Description */}
-              {content.description && (
-                <div className="description-box">
+              {/* Description dengan tombol terjemahan */}
+              <div className="description-box">
+                <div className="description-header">
                   <h3>Deskripsi</h3>
-                  <p>{content.description}</p>
+                  {content.source_type === 'nasa_apod' && (
+                    <button
+                      className={`tombol-bahasa ${tampilkanAsli ? 'badge-asli' : ''}`}
+                      onClick={handleTerjemah}
+                    >
+                      <Languages size={14} />
+                      {tampilkanAsli ? 'Tampilkan Terjemahan' : 'Lihat Teks Asli'}
+                    </button>
+                  )}
                 </div>
-              )}
+                <p>{content.description}</p>
+              </div>
 
               {/* Keywords */}
               {content.tags && content.tags.length > 0 && (
@@ -735,7 +773,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
                   disabled={loading}
                 >
                   <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} />
-                  {isLiked ? 'Disukai' : 'Suka'} ({content.likes_count + (isLiked ? 1 : 0)})
+                  {isLiked ? 'Disukai' : 'Suka'}
                 </button>
 
                 <button
@@ -770,7 +808,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
                   onClick={() => setShowPostModal(true)}
                 >
                   <Users size={18} />
-                  Posting ke Feed
+                  Posting
                 </button>
 
                 <a
@@ -830,7 +868,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
                 fontSize: 13,
                 color: 'rgba(255,255,255,0.8)'
               }}>
-                <strong>📝 Deskripsi:</strong> {content.description?.substring(0, 120)}...
+                <strong>Deskripsi:</strong> {content.description?.substring(0, 120)}...
               </div>
 
               {/* Input Komentar */}
@@ -844,7 +882,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
 
               {/* Preview Postingan */}
               <div className="post-preview">
-                <strong>📋 Preview postingan:</strong><br/>
+                <strong>Preview postingan:</strong><br/>
                 <span style={{ color: '#8b5cf6' }}>{content.title}</span><br/>
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
                   {new Date(content.original_created_at).toLocaleDateString('id-ID')} • {content.author_name || 'NASA'}
@@ -853,7 +891,7 @@ export function ExploreDetailModal({ content, isOpen, onClose, onLike, onSave }:
                 {postContent && (
                   <>
                     <br/>
-                    <span style={{ color: '#0ea5e9' }}>💬 {postContent}</span>
+                    <span style={{ color: '#0ea5e9' }}>Komentar: {postContent}</span>
                   </>
                 )}
               </div>
