@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { 
@@ -13,7 +13,7 @@ import {
   Users, BookOpen, Compass, Satellite, Rocket,
   Telescope, Cloud, Wind, Thermometer, Navigation,
   MessageCircle, Send, Loader2, Sparkles, MoreHorizontal,
-  Languages
+  Languages, ChevronDown, ChevronUp
 } from 'lucide-react'
 
 /* ══════════════════════════════════════════════════════
@@ -25,6 +25,7 @@ interface NasaItem {
   deskripsi: string
   deskripsiAsli?: string
   gambar: string
+  gambarHd?: string
   tanggal: string
   sumber: string
   fotografer?: string
@@ -37,7 +38,7 @@ interface NasaItem {
   isDisimpan: boolean
   likeId?: string
   kategori?: string
-  bahasaAsli?: 'en' | 'id'
+  copyright?: string
 }
 
 interface Kategori {
@@ -51,6 +52,15 @@ interface Kategori {
 /* ══════════════════════════════════════════════════════
    HELPER FUNCTIONS
 ══════════════════════════════════════════════════════ */
+function formatTanggal(tanggal: string) {
+  const date = new Date(tanggal)
+  return date.toLocaleDateString('id-ID', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  })
+}
+
 function waktuLalu(tanggal: string) {
   const selisih = Date.now() - new Date(tanggal).getTime()
   const menit = Math.floor(selisih / 60000)
@@ -61,26 +71,6 @@ function waktuLalu(tanggal: string) {
   if (menit < 60) return `${menit} menit lalu`
   if (jam < 24) return `${jam} jam lalu`
   return `${hari} hari lalu`
-}
-
-// Fungsi untuk menerjemahkan deskripsi NASA
-async function terjemahkanDeskripsi(teks: string): Promise<string> {
-  // Ini bisa diimplementasikan dengan API terjemahan
-  // Sementara pake aturan sederhana dulu
-  const terjemahan: Record<string, string> = {
-    'This long duration photograph looks out from a window on the cupola revealing Earth\'s atmospheric glow underneath star trails': 'Foto durasi panjang ini diambil dari jendela cupola yang memperlihatkan cahaya atmosfer Bumi di bawah jejak bintang',
-    'as the International Space Station orbited 258 miles above the Pacific Ocean southeast of Hawaii at approximately 8:15 p.m. local time': 'saat Stasiun Luar Angkasa Internasional mengorbit 258 mil di atas Samudra Pasifik tenggara Hawaii sekitar pukul 20:15 waktu setempat',
-    'In the foreground, is the Kibo laboratory module': 'Di latar depan, terlihat modul laboratorium Kibo',
-    'and Kibo\'s External Platform that houses experiments exposed to the vacuum of space': 'dan Platform Eksternal Kibo yang menampung eksperimen yang terpapar ruang hampa udara',
-    'and a set of the space station\'s main solar arrays': 'dan serangkaian panel surya utama stasiun luar angkasa',
-  }
-  
-  let hasil = teks
-  Object.entries(terjemahan).forEach(([en, id]) => {
-    hasil = hasil.replace(en, id)
-  })
-  
-  return hasil
 }
 
 const GRADIEN_AVATAR = [
@@ -107,40 +97,19 @@ function Avatar({ nama = 'A', ukuran = 40 }: { nama?: string; ukuran?: number })
   )
 }
 
-function TampilkanTeks(teks: string) {
-  if (!teks) return null
-  
-  return (
-    <div>
-      {teks.split(/(\s+)/).map((kata, i) => {
-        if (kata.startsWith('#')) {
-          return <span key={i} style={{ color: '#818cf8', fontWeight: 500 }}>{kata}</span>
-        }
-        if (kata.startsWith('@')) {
-          return <span key={i} style={{ color: '#38bdf8', fontWeight: 500 }}>{kata}</span>
-        }
-        return kata
-      })}
-    </div>
-  )
-}
-
 /* ══════════════════════════════════════════════════════
    SKELETON LOADING
 ══════════════════════════════════════════════════════ */
-function SkeletonGrid() {
+function SkeletonCard() {
   return (
-    <div className="grid-nasa">
-      {[1,2,3,4,5,6].map(i => (
-        <div key={i} className="card-nasa skeleton" style={{ height: '320px' }}>
-          <div className="gambar-container" style={{ background: 'rgba(255,255,255,0.05)' }}></div>
-          <div className="konten-card">
-            <div className="skeleton-line" style={{ width: '80%' }}></div>
-            <div className="skeleton-line" style={{ width: '60%' }}></div>
-            <div className="skeleton-line" style={{ width: '100%' }}></div>
-          </div>
-        </div>
-      ))}
+    <div className="card-nasa skeleton">
+      <div className="skeleton-image"></div>
+      <div className="konten-card">
+        <div className="skeleton-line" style={{ width: '80%', height: '20px' }}></div>
+        <div className="skeleton-line" style={{ width: '60%', height: '16px' }}></div>
+        <div className="skeleton-line" style={{ width: '100%', height: '40px' }}></div>
+        <div className="skeleton-line" style={{ width: '50%', height: '32px' }}></div>
+      </div>
     </div>
   )
 }
@@ -157,7 +126,7 @@ export default function NasaPage() {
   const [items, setItems] = useState<NasaItem[]>([])
   const [itemsTerfilter, setItemsTerfilter] = useState<NasaItem[]>([])
   const [kataKunci, setKataKunci] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [itemDipilih, setItemDipilih] = useState<NasaItem | null>(null)
   const [modeTampilan, setModeTampilan] = useState<'grid' | 'list'>('grid')
@@ -169,11 +138,13 @@ export default function NasaPage() {
     totalDilihat: 0,
   })
   const observerRef = useRef<HTMLDivElement>(null)
-  const [keywordTerpakai, setKeywordTerpakai] = useState<string[]>([])
+  const [halaman, setHalaman] = useState(1)
+  const [totalHalaman, setTotalHalaman] = useState(1)
+  const [semuaData, setSemuaData] = useState<NasaItem[]>([])
   
   // State untuk terjemahan
   const [tampilkanAsli, setTampilkanAsli] = useState(false)
-  const [sedangMenerjemahkan, setSedangMenerjemahkan] = useState(false)
+  const [deskripsiTerjemahan, setDeskripsiTerjemahan] = useState<Record<string, string>>({})
   
   // ============================
   // STATE UNTUK POSTING KE KOMUNITAS
@@ -185,15 +156,22 @@ export default function NasaPage() {
   const [loadingAuth, setLoadingAuth] = useState(true)
 
   // ============================
-  // KEYWORDS NASA
+  // KEYWORDS NASA LENGKAP
   // ============================
   const nasaKeywords = [
     'nebula', 'galaxy', 'black hole', 'star', 'supernova',
-    'orion nebula', 'andromeda', 'milky way', 'moon', 'mars',
-    'jupiter', 'saturn', 'earth', 'sun', 'aurora',
-    'astronaut', 'iss', 'hubble', 'james webb', 'rocket',
-    'spacex', 'apollo', 'artemis', 'space station', 'telescope',
-    'solar flare', 'eclipse', 'comet', 'asteroid', 'constellation'
+    'orion nebula', 'eagle nebula', 'crab nebula', 'ring nebula',
+    'andromeda', 'milky way', 'whirlpool galaxy', 'sombrero galaxy',
+    'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto',
+    'sun', 'aurora', 'comet', 'asteroid', 'meteor',
+    'astronaut', 'iss', 'space station', 'hubble', 'james webb',
+    'spacex', 'falcon', 'apollo', 'artemis', 'rocket',
+    'solar flare', 'eclipse', 'constellation', 'star trail',
+    'earth from space', 'northern lights', 'southern lights',
+    'telescope', 'observatory', 'spacewalk', 'moon landing',
+    'satellite', 'probe', 'rover', 'curiosity', 'perseverance',
+    'cassini', 'voyager', 'new horizons', 'dragon', 'starship',
+    'black hole m87', 'sagittarius a', 'trappist', 'proxima centauri'
   ]
 
   // ============================
@@ -211,9 +189,14 @@ export default function NasaPage() {
     { id: 'saturn', nama: 'Saturnus', icon: '🪐', jumlah: 0, warna: 'from-yellow-600 to-amber-400' },
     { id: 'star', nama: 'Bintang', icon: '⭐', jumlah: 0, warna: 'from-yellow-400 to-red-500' },
     { id: 'sun', nama: 'Matahari', icon: '☀️', jumlah: 0, warna: 'from-yellow-500 to-red-600' },
+    { id: 'aurora', nama: 'Aurora', icon: '🌌', jumlah: 0, warna: 'from-green-400 to-blue-500' },
+    { id: 'comet', nama: 'Komet', icon: '☄️', jumlah: 0, warna: 'from-blue-400 to-cyan-400' },
     { id: 'astronaut', nama: 'Astronot', icon: '👨‍🚀', jumlah: 0, warna: 'from-blue-500 to-indigo-600' },
     { id: 'iss', nama: 'ISS', icon: '🛸', jumlah: 0, warna: 'from-blue-400 to-indigo-500' },
-    { id: 'aurora', nama: 'Aurora', icon: '🌌', jumlah: 0, warna: 'from-green-400 to-blue-500' },
+    { id: 'spacecraft', nama: 'Wahana', icon: '🚀', jumlah: 0, warna: 'from-red-500 to-pink-500' },
+    { id: 'telescope', nama: 'Teleskop', icon: '🔭', jumlah: 0, warna: 'from-purple-600 to-indigo-600' },
+    { id: 'eclipse', nama: 'Gerhana', icon: '🌑', jumlah: 0, warna: 'from-gray-700 to-yellow-800' },
+    { id: 'supernova', nama: 'Supernova', icon: '💥', jumlah: 0, warna: 'from-orange-600 to-red-700' },
   ]
 
   // ============================
@@ -235,84 +218,145 @@ export default function NasaPage() {
   }, [])
 
   // ============================
-  // FUNGSI TERJEMAHAN
+  // FUNGSI TERJEMAHAN SEDERHANA
   // ============================
-  const handleTerjemah = async (item: NasaItem) => {
-    if (tampilkanAsli) {
-      // Balik ke bahasa Indonesia
+  const terjemahkanTeks = (teks: string): string => {
+    // Pattern umum dalam deskripsi NASA
+    const pola: [RegExp, string][] = [
+      [/This (long duration )?photograph/i, 'Foto ini'],
+      [/looks out from a window on the cupola/i, 'diambil dari jendela cupola'],
+      [/revealing Earth's atmospheric glow/i, 'memperlihatkan cahaya atmosfer Bumi'],
+      [/underneath star trails/i, 'di bawah jejak bintang'],
+      [/as the International Space Station orbited/i, 'saat Stasiun Luar Angkasa Internasional mengorbit'],
+      [/miles above the Pacific Ocean/i, 'mil di atas Samudra Pasifik'],
+      [/southeast of Hawaii/i, 'tenggara Hawaii'],
+      [/at approximately/i, 'sekitar pukul'],
+      [/local time/i, 'waktu setempat'],
+      [/In the foreground/i, 'Di latar depan'],
+      [/is the Kibo laboratory module/i, 'terlihat modul laboratorium Kibo'],
+      [/Kibo's External Platform/i, 'Platform Eksternal Kibo'],
+      [/that houses experiments exposed to the vacuum of space/i, 'yang menampung eksperimen yang terpapar ruang hampa udara'],
+      [/a set of the space station's main solar arrays/i, 'serangkaian panel surya utama stasiun luar angkasa'],
+      [/NASA's (Astronomy Picture of the Day )?/i, 'Gambar Astronomi NASA'],
+      [/Image Credit:|Credit:/i, 'Kredit Gambar:'],
+      [/Explanation:/i, 'Penjelasan:'],
+      [/The image shows/i, 'Gambar ini menunjukkan'],
+      [/captured by/i, 'diabadikan oleh'],
+      [/taken on/i, 'diambil pada'],
+      [/This image from/i, 'Gambar ini dari'],
+      [/shows a detailed view of/i, 'menampilkan detail dari'],
+      [/located approximately/i, 'terletak sekitar'],
+      [/light-years away/i, 'tahun cahaya'],
+      [/in the constellation/i, 'di rasi bintang'],
+    ]
+    
+    let hasil = teks
+    for (const [regex, ganti] of pola) {
+      hasil = hasil.replace(regex, ganti)
+    }
+    
+    // Terjemahan kata umum
+    const kata: [RegExp, string][] = [
+      [/\bimage\b/gi, 'gambar'],
+      [/\bphoto\b/gi, 'foto'],
+      [/\bpicture\b/gi, 'gambar'],
+      [/\bphotograph\b/gi, 'foto'],
+      [/\bstar\b/gi, 'bintang'],
+      [/\bstars\b/gi, 'bintang-bintang'],
+      [/\bgalaxy\b/gi, 'galaksi'],
+      [/\bgalaxies\b/gi, 'galaksi'],
+      [/\bnebula\b/gi, 'nebula'],
+      [/\bnebulae\b/gi, 'nebula'],
+      [/\bplanet\b/gi, 'planet'],
+      [/\bplanets\b/gi, 'planet'],
+      [/\bmoon\b/gi, 'bulan'],
+      [/\bmoons\b/gi, 'bulan'],
+      [/\bearth\b/gi, 'Bumi'],
+      [/\bmars\b/gi, 'Mars'],
+      [/\bjupiter\b/gi, 'Jupiter'],
+      [/\bsaturn\b/gi, 'Saturnus'],
+      [/\bspace\b/gi, 'luar angkasa'],
+      [/\buniverse\b/gi, 'alam semesta'],
+      [/\bcosmos\b/gi, 'kosmos'],
+      [/\bobservation\b/gi, 'pengamatan'],
+      [/\bobserved\b/gi, 'diamati'],
+      [/\brevealed\b/gi, 'terungkap'],
+      [/\breveals\b/gi, 'memperlihatkan'],
+      [/\bshows\b/gi, 'menunjukkan'],
+      [/\bdisplay\b/gi, 'menampilkan'],
+      [/\bfeatures\b/gi, 'fitur'],
+      [/\bregion\b/gi, 'wilayah'],
+      [/\barea\b/gi, 'area'],
+      [/\bcenter\b/gi, 'pusat'],
+      [/\bcentral\b/gi, 'pusat'],
+      [/\bnorthern\b/gi, 'utara'],
+      [/\bsouthern\b/gi, 'selatan'],
+      [/\beastern\b/gi, 'timur'],
+      [/\bwestern\b/gi, 'barat'],
+    ]
+    
+    for (const [regex, ganti] of kata) {
+      hasil = hasil.replace(regex, ganti)
+    }
+    
+    return hasil
+  }
+
+  const handleTerjemah = (item: NasaItem) => {
+    if (!tampilkanAsli) {
+      // Simpan deskripsi asli kalo belum ada
+      if (!item.deskripsiAsli) {
+        item.deskripsiAsli = item.deskripsi
+      }
+      
+      // Terjemahkan deskripsi
+      const terjemahan = terjemahkanTeks(item.deskripsiAsli)
+      
+      // Simpan di state terjemahan
+      setDeskripsiTerjemahan(prev => ({
+        ...prev,
+        [item.id]: terjemahan
+      }))
+      
+      // Update item yang dipilih
+      setItemDipilih({
+        ...item,
+        deskripsi: terjemahan
+      })
+      setTampilkanAsli(true)
+    } else {
+      // Kembali ke deskripsi asli
       setItemDipilih({
         ...item,
         deskripsi: item.deskripsiAsli || item.deskripsi
       })
       setTampilkanAsli(false)
-    } else {
-      // Tampilkan bahasa Inggris asli
-      setSedangMenerjemahkan(true)
-      try {
-        // Simpan deskripsi asli kalo belum ada
-        if (!item.deskripsiAsli) {
-          item.deskripsiAsli = item.deskripsi
-        }
-        
-        // Tampilkan teks asli (dari API NASA)
-        setItemDipilih({
-          ...item,
-          deskripsi: item.deskripsiAsli
-        })
-        setTampilkanAsli(true)
-      } catch (error) {
-        console.error('Error:', error)
-        toast.error('Gagal memuat teks asli')
-      } finally {
-        setSedangMenerjemahkan(false)
-      }
     }
   }
 
   // ============================
-  // FETCH DATA NASA
+  // FETCH DATA NASA - URUTAN TERBARU
   // ============================
-  const fetchNasaData = async (reset = false) => {
+  const fetchDataNASA = useCallback(async (reset = false) => {
     try {
       if (reset) {
         setLoading(true)
-        setKeywordTerpakai([])
-      } else {
-        setLoadingMore(true)
+        setHalaman(1)
+        setSemuaData([])
       }
 
-      let keywordsToFetch: string[] = []
-      
-      if (reset) {
-        keywordsToFetch = nasaKeywords
-          .sort(() => 0.5 - Math.random())
-          .slice(0, 8)
-        setKeywordTerpakai(keywordsToFetch)
-      } else {
-        const remainingKeywords = nasaKeywords.filter(k => !keywordTerpakai.includes(k))
-        if (remainingKeywords.length === 0) {
-          keywordsToFetch = nasaKeywords
-            .sort(() => 0.5 - Math.random())
-            .slice(0, 4)
-        } else {
-          keywordsToFetch = remainingKeywords
-            .sort(() => 0.5 - Math.random())
-            .slice(0, 4)
-        }
-        setKeywordTerpakai(prev => [...prev, ...keywordsToFetch])
-      }
-
-      if (kataKunci && !keywordsToFetch.includes(kataKunci)) {
-        keywordsToFetch.push(kataKunci)
-      }
+      const keywordsToFetch = reset 
+        ? nasaKeywords.slice(0, 10) // Ambil 10 keyword pertama untuk initial load
+        : nasaKeywords.slice(halaman * 5, (halaman + 1) * 5) // Ambil 5 keyword berikutnya
 
       const semuaItem: NasaItem[] = []
       
       await Promise.all(
         keywordsToFetch.map(async (keyword) => {
           try {
+            // Fetch per halaman untuk mendapatkan data terbaru
             const response = await fetch(
-              `https://images-api.nasa.gov/search?q=${encodeURIComponent(keyword)}&media_type=image&page=1&page_size=15`
+              `https://images-api.nasa.gov/search?q=${encodeURIComponent(keyword)}&media_type=image&page=1&page_size=10&year_start=2020&year_end=2025`
             )
             
             if (!response.ok) return []
@@ -324,19 +368,20 @@ export default function NasaPage() {
               judul: item.data[0].title || 'Gambar NASA',
               deskripsi: item.data[0].description || 'Gambar menakjubkan dari luar angkasa',
               deskripsiAsli: item.data[0].description,
-              gambar: item.links?.[0]?.href || 'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06',
-              tanggal: item.data[0].date_created?.split('T')[0] || new Date().toISOString().split('T')[0],
+              gambar: item.links?.[0]?.href || '',
+              gambarHd: item.links?.[0]?.href?.replace('~thumb', '~orig') || item.links?.[0]?.href,
+              tanggal: item.data[0].date_created?.split('T')[0] || '',
               sumber: item.data[0].center || 'NASA',
-              fotografer: item.data[0].photographer || 'NASA',
+              fotografer: item.data[0].photographer || item.data[0].secondary_creator || 'NASA',
               kataKunci: item.data[0].keywords || [keyword, 'space', 'nasa'],
               nasa_id: item.data[0].nasa_id,
               tipeMedia: item.data[0].media_type || 'gambar',
               suka: 0,
-              dilihat: Math.floor(Math.random() * 5000) + 1000,
+              dilihat: Math.floor(Math.random() * 5000) + 500,
               isDisukai: false,
               isDisimpan: false,
               kategori: keyword,
-              bahasaAsli: 'en'
+              copyright: item.data[0].copyright
             }))
           } catch (error) {
             console.error(`Error fetching ${keyword}:`, error)
@@ -349,14 +394,36 @@ export default function NasaPage() {
         })
       })
 
+      // Hapus duplikat berdasarkan ID
       const uniqueItems = Array.from(
         new Map(semuaItem.map(item => [item.id, item])).values()
       )
 
-      uniqueItems.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime())
+      // Urutkan dari terbaru ke terlama berdasarkan tanggal
+      uniqueItems.sort((a, b) => {
+        const dateA = a.tanggal ? new Date(a.tanggal).getTime() : 0
+        const dateB = b.tanggal ? new Date(b.tanggal).getTime() : 0
+        return dateB - dateA
+      })
 
+      // Filter hanya yang memiliki gambar valid
+      const validItems = uniqueItems.filter(item => item.gambar && item.gambar.includes('nasa.gov'))
+
+      // Gabungkan dengan data yang sudah ada
+      const combined = reset ? validItems : [...semuaData, ...validItems]
+      
+      // Hapus duplikat lagi dan urutkan
+      const finalItems = Array.from(
+        new Map(combined.map(item => [item.id, item])).values()
+      ).sort((a, b) => {
+        const dateA = a.tanggal ? new Date(a.tanggal).getTime() : 0
+        const dateB = b.tanggal ? new Date(b.tanggal).getTime() : 0
+        return dateB - dateA
+      })
+
+      // Cek likes dari database kalo user login
       if (user) {
-        for (let item of uniqueItems) {
+        for (let item of finalItems) {
           const { data: likeData } = await supabase
             .from('nasa_likes')
             .select('id')
@@ -375,87 +442,126 @@ export default function NasaPage() {
         }
       }
 
-      if (reset) {
-        setItems(uniqueItems)
-        setItemsTerfilter(uniqueItems)
-      } else {
-        const combined = [...items, ...uniqueItems]
-        const uniqueCombined = Array.from(
-          new Map(combined.map(item => [item.id, item])).values()
+      setSemuaData(finalItems)
+      
+      // Filter berdasarkan kategori aktif
+      let filtered = [...finalItems]
+      if (kategoriAktif !== 'all') {
+        filtered = filtered.filter(item => 
+          item.kataKunci.some(k => 
+            k.toLowerCase().includes(kategoriAktif.toLowerCase())
+          ) || 
+          item.judul.toLowerCase().includes(kategoriAktif.toLowerCase()) ||
+          item.kategori?.toLowerCase().includes(kategoriAktif.toLowerCase())
         )
-        uniqueCombined.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime())
-        
-        setItems(uniqueCombined)
-        setItemsTerfilter(uniqueCombined)
+      }
+      
+      // Urutkan berdasarkan pilihan
+      if (urutan === 'terbaru') {
+        filtered.sort((a, b) => {
+          const dateA = a.tanggal ? new Date(a.tanggal).getTime() : 0
+          const dateB = b.tanggal ? new Date(b.tanggal).getTime() : 0
+          return dateB - dateA
+        })
+      } else {
+        filtered.sort((a, b) => {
+          const dateA = a.tanggal ? new Date(a.tanggal).getTime() : 0
+          const dateB = b.tanggal ? new Date(b.tanggal).getTime() : 0
+          return dateA - dateB
+        })
       }
 
-      updateStats(reset ? uniqueItems : items)
+      setItems(finalItems)
+      setItemsTerfilter(filtered)
+      setHalaman(prev => reset ? 2 : prev + 1)
       
-      toast.success(`${uniqueItems.length} gambar berhasil dimuat`)
+      // Update statistik
+      setStatistik({
+        totalItem: finalItems.length,
+        totalSuka: finalItems.reduce((sum, item) => sum + item.suka, 0),
+        totalDilihat: finalItems.reduce((sum, item) => sum + item.dilihat, 0),
+      })
 
     } catch (error) {
       console.error('Error:', error)
       toast.error('Gagal memuat data NASA')
-      
-      if (reset) {
-        const fallbackData = generateFallbackData()
-        setItems(fallbackData)
-        setItemsTerfilter(fallbackData)
-        updateStats(fallbackData)
-      }
     } finally {
       setLoading(false)
       setLoadingMore(false)
     }
-  }
+  }, [halaman, user, kategoriAktif, urutan])
 
-  // ============================
-  // FALLBACK DATA
-  // ============================
-  const generateFallbackData = (): NasaItem[] => {
-    const data = [
-      {
-        judul: "Earth's atmospheric glow underneath star trails",
-        deskripsi: "Foto durasi panjang ini diambil dari jendela cupola yang memperlihatkan cahaya atmosfer Bumi di bawah jejak bintang saat Stasiun Luar Angkasa Internasional mengorbit 258 mil di atas Samudra Pasifik tenggara Hawaii sekitar pukul 20:15 waktu setempat. Di latar depan, terlihat modul laboratorium Kibo dan Platform Eksternal Kibo yang menampung eksperimen yang terpapar ruang hampa udara, serta serangkaian panel surya utama stasiun luar angkasa.",
-        deskripsiAsli: "This long duration photograph looks out from a window on the cupola revealing Earth's atmospheric glow underneath star trails as the International Space Station orbited 258 miles above the Pacific Ocean southeast of Hawaii at approximately 8:15 p.m. local time. In the foreground, is the Kibo laboratory module (left), and Kibo's External Platform (center) that houses experiments exposed to the vacuum of space, and a set of the space station's main solar arrays (right).",
-        tanggal: "2025-04-02",
-        sumber: "JSC",
-        fotografer: "NASA",
-        kataKunci: ["startrail", "space", "nasa"],
-        kategori: "star trail"
+  // Initial fetch
+  useEffect(() => {
+    fetchDataNASA(true)
+  }, [])
+
+  // Filter & sort ketika kategori atau urutan berubah
+  useEffect(() => {
+    if (semuaData.length === 0) return
+    
+    let filtered = [...semuaData]
+    
+    if (kategoriAktif !== 'all') {
+      filtered = filtered.filter(item => 
+        item.kataKunci.some(k => 
+          k.toLowerCase().includes(kategoriAktif.toLowerCase())
+        ) || 
+        item.judul.toLowerCase().includes(kategoriAktif.toLowerCase()) ||
+        item.kategori?.toLowerCase().includes(kategoriAktif.toLowerCase())
+      )
+    }
+    
+    if (urutan === 'terbaru') {
+      filtered.sort((a, b) => {
+        const dateA = a.tanggal ? new Date(a.tanggal).getTime() : 0
+        const dateB = b.tanggal ? new Date(b.tanggal).getTime() : 0
+        return dateB - dateA
+      })
+    } else {
+      filtered.sort((a, b) => {
+        const dateA = a.tanggal ? new Date(a.tanggal).getTime() : 0
+        const dateB = b.tanggal ? new Date(b.tanggal).getTime() : 0
+        return dateA - dateB
+      })
+    }
+    
+    setItemsTerfilter(filtered)
+    
+    // Update kategori count
+    kategoriList.forEach(kat => {
+      if (kat.id !== 'all') {
+        const count = filtered.filter(item => 
+          item.kataKunci.some(k => k.toLowerCase().includes(kat.id.toLowerCase()))
+        ).length
+        kat.jumlah = count
+      } else {
+        kat.jumlah = filtered.length
       }
-    ]
-
-    return data.map((item, index) => ({
-      id: `fallback-${index}`,
-      judul: item.judul,
-      deskripsi: item.deskripsi,
-      deskripsiAsli: item.deskripsiAsli,
-      gambar: `https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2070&auto=format&fit=crop`,
-      tanggal: item.tanggal,
-      sumber: item.sumber,
-      fotografer: item.fotografer,
-      kataKunci: item.kataKunci,
-      nasa_id: `nasa-${index}`,
-      tipeMedia: 'gambar',
-      suka: 45,
-      dilihat: 1234,
-      isDisukai: false,
-      isDisimpan: false,
-      kategori: item.kategori
-    }))
-  }
-
-  // ============================
-  // UPDATE STATISTIK
-  // ============================
-  const updateStats = (itemsList: NasaItem[]) => {
-    setStatistik({
-      totalItem: itemsList.length,
-      totalSuka: itemsList.reduce((sum, item) => sum + item.suka, 0),
-      totalDilihat: itemsList.reduce((sum, item) => sum + item.dilihat, 0),
     })
-  }
+    
+  }, [semuaData, kategoriAktif, urutan])
+
+  // ============================
+  // INFINITE SCROLL
+  // ============================
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && !loading && !loadingMore && items.length > 0) {
+          setLoadingMore(true)
+          fetchDataNASA()
+        }
+      },
+      { threshold: 0.5 }
+    )
+
+    if (observerRef.current) {
+      observer.observe(observerRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [loading, loadingMore, items.length])
 
   // ============================
   // LIKE
@@ -581,18 +687,20 @@ export default function NasaPage() {
   // SHARE
   // ============================
   const handleShare = async (item: NasaItem) => {
+    const shareData = {
+      title: item.judul,
+      text: `Lihat gambar NASA ini: ${item.judul}`,
+      url: item.gambarHd || item.gambar
+    }
+
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: item.judul,
-          text: `Lihat gambar NASA ini: ${item.judul}`,
-          url: item.gambar
-        })
+        await navigator.share(shareData)
       } catch (error) {
         console.log('Share cancelled')
       }
     } else {
-      navigator.clipboard.writeText(item.gambar)
+      navigator.clipboard.writeText(item.gambarHd || item.gambar)
       toast.success('Link disalin')
     }
   }
@@ -612,7 +720,6 @@ export default function NasaPage() {
       a.click()
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
-      
       toast.success('Gambar diunduh')
     } catch (error) {
       toast.error('Gagal mengunduh gambar')
@@ -633,14 +740,7 @@ export default function NasaPage() {
     try {
       setSedangPosting(true)
       
-      const tanggalObj = new Date(itemDipilih.tanggal)
-      const tanggalFormat = tanggalObj.toLocaleDateString('id-ID', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      })
-      
-      const deskripsiNASA = itemDipilih.deskripsi
+      const tanggalFormat = formatTanggal(itemDipilih.tanggal)
       const komenUser = komentarPosting ? `\n\nKomentar saya:\n${komentarPosting}` : ''
       
       const kategoriHashtag = itemDipilih.kategori 
@@ -652,7 +752,7 @@ export default function NasaPage() {
         .map(k => `#${k.replace(/\s+/g, '')}`)
         .join(' ')
       
-      const kontenLengkap = `${itemDipilih.judul}\n\nTanggal: ${tanggalFormat}\nSumber: ${itemDipilih.sumber}\nKategori: ${kategoriHashtag}\n\n${deskripsiNASA}${komenUser}\n\n${keywordsHashtags} #LuarAngkasa #Astronomi`
+      const kontenLengkap = `**${itemDipilih.judul}**\n\n📅 Tanggal: ${tanggalFormat}\n📸 Sumber: ${itemDipilih.sumber}\n🏷️ ${kategoriHashtag}\n\n${itemDipilih.deskripsi}${komenUser}\n\n${keywordsHashtags} #LuarAngkasa #Astronomi`
 
       const { error } = await supabase
         .from('posts')
@@ -661,7 +761,7 @@ export default function NasaPage() {
             user_id: user.id,
             title: `NASA: ${itemDipilih.judul}`,
             content: kontenLengkap,
-            image_url: itemDipilih.gambar,
+            image_url: itemDipilih.gambarHd || itemDipilih.gambar,
             category: 'nasa'
           }
         ])
@@ -692,59 +792,6 @@ export default function NasaPage() {
       setSedangPosting(false)
     }
   }
-
-  // ============================
-  // FILTER & SORT
-  // ============================
-  useEffect(() => {
-    let filtered = [...items]
-    
-    if (kategoriAktif !== 'all') {
-      filtered = filtered.filter(item => 
-        item.kataKunci.some(keyword => 
-          keyword.toLowerCase().includes(kategoriAktif.toLowerCase())
-        ) || 
-        item.judul.toLowerCase().includes(kategoriAktif.toLowerCase()) ||
-        item.kategori?.toLowerCase().includes(kategoriAktif.toLowerCase())
-      )
-    }
-    
-    if (urutan === 'terbaru') {
-      filtered.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime())
-    } else {
-      filtered.sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime())
-    }
-    
-    setItemsTerfilter(filtered)
-    
-  }, [items, kategoriAktif, urutan])
-
-  // ============================
-  // INFINITE SCROLL
-  // ============================
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => {
-        if (entries[0].isIntersecting && !loading && !loadingMore && items.length > 0) {
-          fetchNasaData()
-        }
-      },
-      { threshold: 1.0 }
-    )
-
-    if (observerRef.current) {
-      observer.observe(observerRef.current)
-    }
-
-    return () => observer.disconnect()
-  }, [loading, loadingMore, items.length])
-
-  // ============================
-  // INITIAL FETCH
-  // ============================
-  useEffect(() => {
-    fetchNasaData(true)
-  }, [])
 
   // ============================
   // RENDER UI
@@ -826,6 +873,11 @@ export default function NasaPage() {
           color: white;
           font-size: 13px;
           outline: none;
+          cursor: pointer;
+        }
+        
+        .sort-select option {
+          background: #1a1a2e;
         }
         
         .tombol-refresh {
@@ -839,6 +891,12 @@ export default function NasaPage() {
           display: flex;
           align-items: center;
           gap: 6px;
+          transition: all 0.2s;
+        }
+        
+        .tombol-refresh:hover {
+          background: rgba(124,58,237,0.2);
+          border-color: rgba(124,58,237,0.3);
         }
         
         .search-wrapper {
@@ -855,10 +913,12 @@ export default function NasaPage() {
           color: white;
           font-size: 15px;
           outline: none;
+          transition: all 0.2s;
         }
         
         .search-input:focus {
           border-color: #7c3aed;
+          background: rgba(124,58,237,0.05);
         }
         
         .search-icon {
@@ -875,6 +935,22 @@ export default function NasaPage() {
           overflow-x: auto;
           padding: 8px 0 16px;
           margin-bottom: 16px;
+          scrollbar-width: thin;
+          scrollbar-color: #7c3aed rgba(255,255,255,0.1);
+        }
+        
+        .kategori-scroll::-webkit-scrollbar {
+          height: 4px;
+        }
+        
+        .kategori-scroll::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.1);
+          border-radius: 10px;
+        }
+        
+        .kategori-scroll::-webkit-scrollbar-thumb {
+          background: #7c3aed;
+          border-radius: 10px;
         }
         
         .kategori-btn {
@@ -886,6 +962,12 @@ export default function NasaPage() {
           font-size: 13px;
           white-space: nowrap;
           cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .kategori-btn:hover {
+          background: rgba(124,58,237,0.2);
+          border-color: rgba(124,58,237,0.3);
         }
         
         .kategori-btn.aktif {
@@ -934,6 +1016,12 @@ export default function NasaPage() {
           overflow: hidden;
           transition: all 0.3s;
           cursor: pointer;
+          animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         
         .card-nasa:hover {
@@ -946,6 +1034,7 @@ export default function NasaPage() {
           position: relative;
           height: 200px;
           overflow: hidden;
+          background: linear-gradient(45deg, #1a1a2e, #16213e);
         }
         
         .gambar-container img {
@@ -978,6 +1067,7 @@ export default function NasaPage() {
           border-radius: 20px;
           font-size: 11px;
           color: white;
+          backdrop-filter: blur(4px);
         }
         
         .konten-card {
@@ -989,6 +1079,11 @@ export default function NasaPage() {
           font-weight: 600;
           color: white;
           margin-bottom: 8px;
+          line-height: 1.4;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
         
         .meta-card {
@@ -1030,6 +1125,7 @@ export default function NasaPage() {
           background: none;
           border: none;
           cursor: pointer;
+          transition: all 0.2s;
         }
         
         .tombol-aksi:hover {
@@ -1053,6 +1149,12 @@ export default function NasaPage() {
           border-radius: 16px;
           padding: 16px;
           cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .card-list:hover {
+          background: rgba(255,255,255,0.08);
+          border-color: rgba(124,58,237,0.3);
         }
         
         .loading-more {
@@ -1077,11 +1179,26 @@ export default function NasaPage() {
           to { transform: rotate(360deg); }
         }
         
+        .skeleton-image {
+          width: 100%;
+          height: 200px;
+          background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
+        }
+        
         .skeleton-line {
           height: 16px;
-          background: rgba(255,255,255,0.05);
+          background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
           border-radius: 4px;
-          margin-bottom: 8px;
+          margin: 8px 0;
+        }
+        
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
         }
         
         .modal {
@@ -1093,6 +1210,7 @@ export default function NasaPage() {
           align-items: center;
           justify-content: center;
           padding: 20px;
+          animation: fadeIn 0.2s ease;
         }
         
         .modal-content {
@@ -1104,10 +1222,16 @@ export default function NasaPage() {
           border: 1px solid rgba(255,255,255,0.1);
           border-radius: 24px;
           backdrop-filter: blur(20px);
+          animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(40px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         
         .modal-header {
-          padding: 20px;
+          padding: 20px 24px;
           border-bottom: 1px solid rgba(255,255,255,0.1);
           display: flex;
           justify-content: space-between;
@@ -1115,19 +1239,49 @@ export default function NasaPage() {
           position: sticky;
           top: 0;
           background: rgba(20,20,30,0.95);
+          backdrop-filter: blur(20px);
           border-radius: 24px 24px 0 0;
+          z-index: 10;
+        }
+        
+        .modal-header h2 {
+          font-size: 20px;
+          font-weight: 700;
+          color: white;
+          font-family: 'Archivo Black', sans-serif;
         }
         
         .modal-body {
           padding: 24px;
         }
         
+        .close-btn {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: rgba(255,255,255,0.7);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        
+        .close-btn:hover {
+          background: rgba(239,68,68,0.2);
+          border-color: rgba(239,68,68,0.3);
+          color: #ef4444;
+        }
+        
         .modal-image {
           width: 100%;
           max-height: 400px;
           object-fit: contain;
-          border-radius: 12px;
+          border-radius: 16px;
           margin-bottom: 24px;
+          background: rgba(0,0,0,0.2);
         }
         
         .info-grid {
@@ -1139,7 +1293,7 @@ export default function NasaPage() {
         
         .info-item {
           background: rgba(255,255,255,0.05);
-          padding: 12px;
+          padding: 16px;
           border-radius: 12px;
         }
         
@@ -1152,6 +1306,7 @@ export default function NasaPage() {
         .info-value {
           font-size: 14px;
           font-weight: 500;
+          color: white;
         }
         
         .deskripsi-box {
@@ -1166,6 +1321,15 @@ export default function NasaPage() {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 12px;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        
+        .deskripsi-header h3 {
+          font-size: 16px;
+          font-weight: 700;
+          color: white;
+          font-family: 'Archivo Black', sans-serif;
         }
         
         .tombol-bahasa {
@@ -1179,10 +1343,24 @@ export default function NasaPage() {
           font-size: 12px;
           color: #a78bfa;
           cursor: pointer;
+          transition: all 0.2s;
         }
         
         .tombol-bahasa:hover {
           background: rgba(124,58,237,0.3);
+        }
+        
+        .badge-asli {
+          background: rgba(16,185,129,0.2);
+          border-color: rgba(16,185,129,0.3);
+          color: #10b981;
+        }
+        
+        .deskripsi-box p {
+          color: rgba(255,255,255,0.8);
+          line-height: 1.8;
+          font-size: 14px;
+          white-space: pre-wrap;
         }
         
         .kata-kunci {
@@ -1193,12 +1371,17 @@ export default function NasaPage() {
         }
         
         .keyword {
-          padding: 4px 12px;
-          background: rgba(124,58,237,0.2);
-          border: 1px solid rgba(124,58,237,0.3);
-          border-radius: 20px;
+          padding: 6px 14px;
+          background: rgba(124,58,237,0.1);
+          border: 1px solid rgba(124,58,237,0.2);
+          border-radius: 30px;
           font-size: 12px;
           color: #a78bfa;
+          transition: all 0.2s;
+        }
+        
+        .keyword:hover {
+          background: rgba(124,58,237,0.2);
         }
         
         .tombol-aksi-modal {
@@ -1219,6 +1402,7 @@ export default function NasaPage() {
           display: flex;
           align-items: center;
           gap: 8px;
+          transition: all 0.2s;
         }
         
         .btn-primary {
@@ -1226,20 +1410,23 @@ export default function NasaPage() {
           color: white;
         }
         
+        .btn-primary:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 20px rgba(124,58,237,0.3);
+        }
+        
         .btn-secondary {
           background: rgba(255,255,255,0.1);
           color: white;
         }
         
+        .btn-secondary:hover:not(:disabled) {
+          background: rgba(255,255,255,0.15);
+        }
+        
         .btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
-        }
-        
-        .badge-asli {
-          background: rgba(16,185,129,0.2);
-          border-color: rgba(16,185,129,0.3);
-          color: #10b981;
         }
         
         .empty-state {
@@ -1249,6 +1436,21 @@ export default function NasaPage() {
           border-radius: 20px;
           border: 1px solid rgba(255,255,255,0.05);
         }
+        
+        @media (max-width: 768px) {
+          .grid-nasa {
+            grid-template-columns: 1fr;
+          }
+          
+          .statistik {
+            flex-direction: column;
+            gap: 8px;
+          }
+          
+          .modal-image {
+            max-height: 250px;
+          }
+        }
       `}</style>
 
       <div className="container">
@@ -1256,7 +1458,7 @@ export default function NasaPage() {
         <div className="header">
           <h1 className="judul-utama">Galeri NASA</h1>
           <p className="subjudul">
-            Menampilkan {statistik.totalItem} gambar dari berbagai kategori
+            Menampilkan {statistik.totalItem} gambar dari berbagai kategori, diurutkan dari yang terbaru
           </p>
           
           {/* Toolbar */}
@@ -1281,12 +1483,12 @@ export default function NasaPage() {
               value={urutan}
               onChange={(e) => setUrutan(e.target.value as 'terbaru' | 'terlama')}
             >
-              <option value="terbaru">Terbaru</option>
-              <option value="terlama">Terlama</option>
+              <option value="terbaru">📅 Terbaru</option>
+              <option value="terlama">📅 Terlama</option>
             </select>
             
             <button
-              onClick={() => fetchNasaData(true)}
+              onClick={() => fetchDataNASA(true)}
               className="tombol-refresh"
             >
               <RefreshCw size={14} />
@@ -1300,10 +1502,32 @@ export default function NasaPage() {
             <input
               type="text"
               className="search-input"
-              placeholder="Cari gambar NASA"
+              placeholder="Cari gambar NASA..."
               value={kataKunci}
-              onChange={(e) => setKataKunci(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && fetchNasaData(true)}
+              onChange={(e) => {
+                setKataKunci(e.target.value)
+                if (e.target.value.length > 2) {
+                  const filtered = semuaData.filter(item =>
+                    item.judul.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                    item.deskripsi.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                    item.kataKunci.some(k => k.toLowerCase().includes(e.target.value.toLowerCase()))
+                  )
+                  setItemsTerfilter(filtered)
+                } else {
+                  let filtered = [...semuaData]
+                  if (kategoriAktif !== 'all') {
+                    filtered = filtered.filter(item => 
+                      item.kataKunci.some(k => k.toLowerCase().includes(kategoriAktif.toLowerCase()))
+                    )
+                  }
+                  if (urutan === 'terbaru') {
+                    filtered.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime())
+                  } else {
+                    filtered.sort((a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime())
+                  }
+                  setItemsTerfilter(filtered)
+                }
+              }}
             />
           </div>
           
@@ -1315,7 +1539,7 @@ export default function NasaPage() {
                 className={`kategori-btn ${kategoriAktif === kat.id ? 'aktif' : ''}`}
                 onClick={() => setKategoriAktif(kat.id)}
               >
-                {kat.icon} {kat.nama}
+                {kat.icon} {kat.nama} {kat.jumlah > 0 && `(${kat.jumlah})`}
               </button>
             ))}
           </div>
@@ -1339,7 +1563,9 @@ export default function NasaPage() {
 
         {/* Content */}
         {loading ? (
-          <SkeletonGrid />
+          <div className="grid-nasa">
+            {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+          </div>
         ) : itemsTerfilter.length === 0 ? (
           <div className="empty-state">
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌌</div>
@@ -1347,7 +1573,7 @@ export default function NasaPage() {
               Tidak ada gambar
             </h3>
             <p style={{ color: 'rgba(255,255,255,0.5)' }}>
-              Coba kata kunci yang berbeda
+              Coba kata kunci yang berbeda atau pilih kategori lain
             </p>
           </div>
         ) : modeTampilan === 'grid' ? (
@@ -1363,15 +1589,16 @@ export default function NasaPage() {
               >
                 <div className="gambar-container">
                   <img
-                    src={item.gambar}
+                    src={item.gambar || 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2070&auto=format&fit=crop'}
                     alt={item.judul}
+                    loading="lazy"
                     onError={(e) => {
                       e.currentTarget.src = 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2070&auto=format&fit=crop'
                     }}
                   />
                   <div className="badge-container">
                     <span className="badge">
-                      {item.tipeMedia === 'gambar' ? '📷' : '🎥'}
+                      {new Date(item.tanggal).getFullYear()}
                     </span>
                     {item.kategori && (
                       <span className="badge" style={{ background: 'rgba(14,165,233,0.3)' }}>
@@ -1385,11 +1612,7 @@ export default function NasaPage() {
                   <div className="meta-card">
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Calendar size={12} />
-                      {item.tanggal}
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Eye size={12} />
-                      {item.dilihat.toLocaleString()}
+                      {formatTanggal(item.tanggal)}
                     </span>
                   </div>
                   <p className="deskripsi-card">{item.deskripsi.substring(0, 100)}...</p>
@@ -1431,15 +1654,15 @@ export default function NasaPage() {
                   setItemDipilih(item)
                 }}
               >
-                <div style={{ display: 'flex', gap: '16px' }}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                   <div style={{ width: '120px', height: '120px', flexShrink: 0 }}>
                     <img
-                      src={item.gambar}
+                      src={item.gambar || 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2070&auto=format&fit=crop'}
                       alt={item.judul}
                       style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
                     />
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: '250px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                       <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>
                         {item.judul}
@@ -1459,13 +1682,9 @@ export default function NasaPage() {
                     <div style={{ display: 'flex', gap: '16px', marginBottom: '8px', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Calendar size={12} />
-                        {item.tanggal}
+                        {formatTanggal(item.tanggal)}
                       </span>
                       <span>{item.sumber}</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Eye size={12} />
-                        {item.dilihat.toLocaleString()}
-                      </span>
                     </div>
                     <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', marginBottom: '12px' }}>
                       {item.deskripsi.substring(0, 150)}...
@@ -1504,11 +1723,14 @@ export default function NasaPage() {
             {loadingMore ? (
               <>
                 <div className="spinner"></div>
-                <span>Memuat lebih banyak...</span>
+                <span>Memuat lebih banyak gambar...</span>
               </>
             ) : (
               <button
-                onClick={() => fetchNasaData()}
+                onClick={() => {
+                  setLoadingMore(true)
+                  fetchDataNASA()
+                }}
                 className="btn btn-primary"
                 style={{ padding: '12px 30px' }}
               >
@@ -1523,18 +1745,15 @@ export default function NasaPage() {
           <div className="modal" onClick={() => setItemDipilih(null)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>{itemDipilih.judul}</h2>
-                <button
-                  onClick={() => setItemDipilih(null)}
-                  style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
-                >
+                <h2>{itemDipilih.judul}</h2>
+                <button className="close-btn" onClick={() => setItemDipilih(null)}>
                   <X size={20} />
                 </button>
               </div>
               
               <div className="modal-body">
                 <img
-                  src={itemDipilih.gambar}
+                  src={itemDipilih.gambarHd || itemDipilih.gambar}
                   alt={itemDipilih.judul}
                   className="modal-image"
                 />
@@ -1542,7 +1761,7 @@ export default function NasaPage() {
                 <div className="info-grid">
                   <div className="info-item">
                     <div className="info-label">Tanggal</div>
-                    <div className="info-value">{itemDipilih.tanggal}</div>
+                    <div className="info-value">{formatTanggal(itemDipilih.tanggal)}</div>
                   </div>
                   {itemDipilih.fotografer && (
                     <div className="info-item">
@@ -1552,7 +1771,7 @@ export default function NasaPage() {
                   )}
                   <div className="info-item">
                     <div className="info-label">Sumber</div>
-                    <div className="info-value">{itemDipilih.sumber}</div>
+                    <div className="info-value">{itemDipilih.sumber || 'NASA'}</div>
                   </div>
                   {itemDipilih.kategori && (
                     <div className="info-item">
@@ -1564,21 +1783,16 @@ export default function NasaPage() {
                 
                 <div className="deskripsi-box">
                   <div className="deskripsi-header">
-                    <h3 style={{ fontSize: '16px', fontWeight: 'bold' }}>Deskripsi</h3>
-                    {itemDipilih.deskripsiAsli && (
-                      <button
-                        className={`tombol-bahasa ${tampilkanAsli ? 'badge-asli' : ''}`}
-                        onClick={() => handleTerjemah(itemDipilih)}
-                        disabled={sedangMenerjemahkan}
-                      >
-                        <Languages size={14} />
-                        {sedangMenerjemahkan ? 'Memuat...' : (tampilkanAsli ? 'Tampilkan Terjemahan' : 'Lihat Teks Asli')}
-                      </button>
-                    )}
+                    <h3>Deskripsi</h3>
+                    <button
+                      className={`tombol-bahasa ${tampilkanAsli ? 'badge-asli' : ''}`}
+                      onClick={() => handleTerjemah(itemDipilih)}
+                    >
+                      <Languages size={14} />
+                      {tampilkanAsli ? 'Tampilkan Terjemahan' : 'Lihat Teks Asli'}
+                    </button>
                   </div>
-                  <p style={{ color: 'rgba(255,255,255,0.8)', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-                    {itemDipilih.deskripsi}
-                  </p>
+                  <p>{itemDipilih.deskripsi}</p>
                 </div>
                 
                 <div className="kata-kunci">
@@ -1591,16 +1805,16 @@ export default function NasaPage() {
                 
                 <div className="tombol-aksi-modal">
                   <a
-                    href={itemDipilih.gambar}
+                    href={itemDipilih.gambarHd || itemDipilih.gambar}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-primary"
                   >
                     <ExternalLink size={16} />
-                    Buka Gambar
+                    Buka Gambar HD
                   </a>
                   <button
-                    onClick={() => handleDownload(itemDipilih.gambar, itemDipilih.judul)}
+                    onClick={() => handleDownload(itemDipilih.gambarHd || itemDipilih.gambar, itemDipilih.judul)}
                     className="btn btn-primary"
                   >
                     <Download size={16} />
@@ -1631,11 +1845,8 @@ export default function NasaPage() {
           <div className="modal" onClick={() => setShowPostModal(false)}>
             <div className="modal-content" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>Buat Postingan</h3>
-                <button
-                  onClick={() => setShowPostModal(false)}
-                  style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
-                >
+                <h3>Buat Postingan</h3>
+                <button className="close-btn" onClick={() => setShowPostModal(false)}>
                   <X size={18} />
                 </button>
               </div>
@@ -1656,7 +1867,7 @@ export default function NasaPage() {
                 
                 <div style={{ marginBottom: '16px', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
                   <div><strong style={{ color: '#7c3aed' }}>Judul:</strong> {itemDipilih.judul}</div>
-                  <div><strong style={{ color: '#0ea5e9' }}>Tanggal:</strong> {itemDipilih.tanggal}</div>
+                  <div><strong style={{ color: '#0ea5e9' }}>Tanggal:</strong> {formatTanggal(itemDipilih.tanggal)}</div>
                   <div><strong style={{ color: '#10b981' }}>Kategori:</strong> #{itemDipilih.kategori || 'NASA'}</div>
                 </div>
                 
@@ -1706,7 +1917,7 @@ export default function NasaPage() {
                 }}>
                   <strong>Preview postingan:</strong><br/>
                   <span style={{ color: '#7c3aed' }}>{itemDipilih.judul}</span><br/>
-                  <span style={{ fontSize: '11px' }}>{itemDipilih.tanggal} • {itemDipilih.sumber}</span><br/>
+                  <span style={{ fontSize: '11px' }}>{formatTanggal(itemDipilih.tanggal)} • {itemDipilih.sumber}</span><br/>
                   <span>{itemDipilih.deskripsi.substring(0, 80)}...{komentarPosting && <><br/><span style={{ color: '#0ea5e9' }}>Komentar: {komentarPosting}</span></>}</span>
                 </div>
                 
