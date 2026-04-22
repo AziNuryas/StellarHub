@@ -15,14 +15,10 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              if (options?.maxAge) {
-                // Convert to Date for cookie store
-                options.expires = new Date(Date.now() + options.maxAge * 1000)
-              }
-              cookieStore.set({ name, value, ...options })
+              cookieStore.set(name, value, options) // ← fix: pakai signature yang bener
             })
           } catch {
-            // Ignore errors in middleware
+            // Server Component context, ignore
           }
         },
       },

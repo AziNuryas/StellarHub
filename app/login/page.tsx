@@ -206,10 +206,9 @@ export default function LoginPage() {
         return;
       }
       if (data.session) {
-        toast.success('Welcome back, Explorer! 🚀');
-        // ✅ FIX: Set session dulu, jangan langsung redirect
-        setExistingSession(data.session);
-      }
+  toast.success('Welcome back, Explorer! 🚀');
+  router.push('/feed'); // ← langsung redirect, hapus setExistingSession
+}
     } catch (err: any) {
       toast.error(err.message || 'Login gagal');
     } finally {

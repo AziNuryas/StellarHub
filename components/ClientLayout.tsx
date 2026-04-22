@@ -3,9 +3,8 @@
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { useAuth } from "@/app/contexts/AuthContext"
-import { useTheme } from "@/app/contexts/ThemeContext"  // ← TETAP ADA
+import { useTheme } from "@/app/contexts/ThemeContext"
 import Navbar from "@/components/shared/Navbar"
-import DebugAuth from '@/components/DebugAuth'
 
 export default function ClientLayout({
   children,
@@ -13,7 +12,7 @@ export default function ClientLayout({
   children: React.ReactNode
 }) {
   const { user, loading } = useAuth()
-  const { theme } = useTheme() // ← AMAN KARENA SUDAH DI WRAP
+  const { theme } = useTheme()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -24,32 +23,41 @@ export default function ClientLayout({
   useEffect(() => {
     if (loading) return
 
-    // ✅ Jangan redirect dari landing page
-    if (isLandingPage) return
-
-    // ✅ Redirect ke landing kalau akses protected tanpa login
-    if (!user && !isPublicPath) {
-      router.push('/')
+    // User sudah login tapi masih di landing page atau auth page → langsung ke feed
+    if (user && (isLandingPage || isAuthPage)) {
+      router.replace('/feed')
+      return
     }
 
-    // ✅ DIHAPUS: jangan auto-redirect ke /feed kalau buka /login atau /register
-    // Login page punya UI sendiri untuk handle kondisi "udah login"
-
-  }, [user, loading, pathname, router, isLandingPage, isAuthPage, isPublicPath])
+    // User belum login tapi akses protected route → balik ke landing
+    if (!user && !isPublicPath) {
+      router.replace('/')
+    }
+  }, [user, loading, pathname])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100svh', background: '#07090f'
+      }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: '50%',
+          border: '2px solid rgba(129,140,248,0.15)',
+          borderTopColor: '#818cf8',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
   }
 
+  const showNav = !isAuthPage && !pathname?.startsWith('/auth/')
+
   return (
     <>
-      <DebugAuth />
-      {!isAuthPage && !pathname?.startsWith('/auth/') && <Navbar />}
-      <main className={!isAuthPage && !pathname?.startsWith('/auth/') ? "pt-16" : ""}>
+      {showNav && <Navbar />}
+      <main style={{ paddingTop: showNav ? 64 : 0 }}>
         {children}
       </main>
     </>
