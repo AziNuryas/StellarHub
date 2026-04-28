@@ -11,7 +11,7 @@ import {
   Repeat2, BarChart2, Flame, Link2, Flag,
   ArrowUp, UserPlus, UserCheck, Download,
   ZoomIn, ChevronLeft, ChevronRight, Plus,
-  Eye, Maximize2,
+  Eye, Maximize2, Languages
 } from 'lucide-react';
 
 /* ════════════════════════════════════════════
@@ -267,13 +267,40 @@ function ImageCarousel({images,onOpen}:{images:string[];onOpen:(idx:number)=>voi
 }
 
 /* ════════════════════════════════════════════
-   POST CONTENT (with "see more")
+   POST CONTENT (with "see more" and translate)
 ════════════════════════════════════════════ */
 function PostContent({text}:{text:string|null}) {
   const [exp,setExp]=useState(false);
+  const [translated,setTranslated]=useState<string|null>(null);
+  const [isTranslating,setIsTranslating]=useState(false);
+
   if(!text) return null;
-  const long=text.length>280;
-  const show=long&&!exp?text.slice(0,280)+'…':text;
+  
+  const handleTranslate = async () => {
+    if (translated) {
+      setTranslated(null); // Toggle translation off
+      return;
+    }
+    setIsTranslating(true);
+    try {
+      const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, target_lang: 'ID' }),
+      });
+      const data = await res.json();
+      setTranslated(data.translated || text);
+    } catch {
+      toast.error('Gagal menerjemahkan');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const displayText = translated || text;
+  const long=displayText.length>280;
+  const show=long&&!exp?displayText.slice(0,280)+'…':displayText;
+  
   return (
     <div>
       <p style={{margin:0,color:'var(--txt2)',fontSize:15,lineHeight:1.82}}>
@@ -283,7 +310,13 @@ function PostContent({text}:{text:string|null}) {
           return w;
         })}
       </p>
-      {long&&<button className="see-more" onClick={()=>setExp(v=>!v)}>{exp?'Show less':'See more'}</button>}
+      <div style={{display:'flex',gap:12,marginTop:8}}>
+        {long&&<button className="see-more" onClick={()=>setExp(v=>!v)}>{exp?'Tampilkan sedikit':'Lihat selengkapnya'}</button>}
+        <button onClick={handleTranslate} style={{background:'none',border:'none',color:'var(--accent)',fontSize:13,fontWeight:600,cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:4}}>
+          <Languages size={14} />
+          {isTranslating ? 'Menerjemahkan...' : translated ? 'Tampilkan Asli' : 'Terjemahkan'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -691,7 +724,7 @@ const CSS=`
 html{scroll-behavior:smooth}body{overflow-x:hidden}
 *{scrollbar-width:thin;scrollbar-color:rgba(129,140,248,.15) transparent}
 *::-webkit-scrollbar{width:3px;height:3px}*::-webkit-scrollbar-thumb{background:rgba(129,140,248,.15);border-radius:99px}
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+/* fonts loaded globally via next/font in layout.tsx */
 :root{--bg:#060810;--card:rgba(11,14,26,.9);--accent:#818cf8;--txt:rgba(226,232,240,.96);--txt2:rgba(203,213,225,.75);--muted:rgba(100,116,139,.5);--border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.04)}
 *,*::before,*::after{box-sizing:border-box;margin:0}
 
@@ -951,7 +984,7 @@ export default function FeedPage() {
     try{
       const{data,error}=await supabase.from('posts')
         .select(`*,profiles(username,avatar_url),likes(id,user_id),comments(id,content,created_at,user_id,post_id,profiles(username,avatar_url)),post_images(id,url,order_index)`)
-        .order('created_at',{ascending:false}).limit(50);
+        .order('created_at',{ascending:false}).limit(15);
       if(error)throw error;setPosts(data||[]);
     }catch{toast.error('Failed to load posts');}
     finally{setLoading(false);}
@@ -982,14 +1015,14 @@ export default function FeedPage() {
   const handleLike=async(postId:string)=>{
     if(!user){toast.error('Sign in to like');return;}
     setPosts(prev=>prev.map(p=>{if(p.id!==postId)return p;const a=p.likes.some(l=>l.user_id===user.id);return{...p,likes:a?p.likes.filter(l=>l.user_id!==user.id):[...p.likes,{id:'opt',user_id:user.id}]};}));
-    try{const{data:ex}=await supabase.from('likes').select('id').eq('post_id',postId).eq('user_id',user.id).single();if(ex)await supabase.from('likes').delete().eq('id',ex.id);else await supabase.from('likes').insert({post_id:postId,user_id:user.id});fetchPosts();}catch{fetchPosts();}
+    try{const{data:ex}=await supabase.from('likes').select('id').eq('post_id',postId).eq('user_id',user.id).single();if(ex)await supabase.from('likes').delete().eq('id',ex.id);else await supabase.from('likes').insert({post_id:postId,user_id:user.id});}catch{fetchPosts();}
   };
 
   const handleComment=async(postId:string,text:string)=>{
     if(!user){toast.error('Sign in to comment');return;}
     const opt:Comment={id:'opt-'+Date.now(),content:text,created_at:new Date().toISOString(),user_id:user.id,post_id:postId,profiles:{username:user.user_metadata?.username||user.email?.split('@')[0]||'You',avatar_url:null}};
     setPosts(prev=>prev.map(p=>p.id!==postId?p:{...p,comments:[...(p.comments||[]),opt]}));
-    try{const{error}=await supabase.from('comments').insert({post_id:postId,user_id:user.id,content:text});if(error)throw error;fetchPosts();}catch{toast.error('Failed');fetchPosts();}
+    try{const{error}=await supabase.from('comments').insert({post_id:postId,user_id:user.id,content:text});if(error)throw error;}catch{toast.error('Failed');fetchPosts();}
   };
 
   const handleDelete=async(postId:string)=>{

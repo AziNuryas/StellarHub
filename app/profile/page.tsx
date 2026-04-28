@@ -594,7 +594,7 @@ export default function ProfilePage({params}:Props) {
    STYLES — complete redesign
 ════════════════════════════ */
 const STYLES = `
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&display=swap');
+/* fonts loaded globally via next/font in layout.tsx */
 
 :root {
   --bg:    #060810;

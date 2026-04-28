@@ -136,7 +136,7 @@ export default function RegisterPage() {
   return (
     <div className="sh-reg-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+        /* fonts loaded globally via next/font in layout.tsx */
 
         .sh-reg-root {
           min-height: 100svh;

@@ -387,7 +387,7 @@ export default function NotificationsPage() {
    CSS
 ══════════════════════════════════ */
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600&display=swap');
+/* fonts loaded globally via next/font in layout.tsx */
 :root{--bg:#060810;--card:rgba(10,13,24,.9);--acc:#818cf8;--txt:rgba(226,232,240,.97);--txt2:rgba(203,213,225,.74);--muted:rgba(100,116,139,.5);--bd:rgba(255,255,255,.07);}
 *,*::before,*::after{box-sizing:border-box;margin:0;}
 *{scrollbar-width:thin;scrollbar-color:rgba(129,140,248,.15) transparent;}

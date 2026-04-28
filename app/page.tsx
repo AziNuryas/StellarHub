@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
+import { gsap } from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import * as Tooltip from '@radix-ui/react-tooltip'
 import * as HoverCard from '@radix-ui/react-hover-card'
 import {
@@ -17,7 +19,7 @@ function seededRand(s: number) {
   return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff }
 }
 const rand = seededRand(42)
-const STARS = Array.from({ length: 200 }, (_, i) => ({
+const STARS = Array.from({ length: 80 }, (_, i) => ({
   id: i,
   x: rand() * 100, y: rand() * 100,
   sz: rand() * 2.2 + 0.5,
@@ -94,79 +96,78 @@ export default function StellarHubLanding() {
   const [sent, setSent]       = useState(false)
   const gsapLoaded            = useRef(false)
 
-  /* GSAP init */
+  /* GSAP init — uses NPM package (no CDN) */
   useEffect(() => {
     if (gsapLoaded.current) return
     gsapLoaded.current = true
-    const load = (src: string) => new Promise<void>(res => {
-      if (document.querySelector(`script[src="${src}"]`)) return res()
-      const s = document.createElement('script'); s.src = src; s.onload = () => res(); document.head.appendChild(s)
-    })
-    Promise.all([
-      load('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js'),
-      load('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js'),
-    ]).then(() => {
-      const { gsap, ScrollTrigger } = window as any
-      gsap.registerPlugin(ScrollTrigger)
 
-      gsap.set('.hero-content', { autoAlpha: 1 })
-      gsap.timeline({ defaults: { ease: 'expo.out' } })
-        .from('.h-badge',   { autoAlpha: 0, y: 20, duration: 0.7, delay: 0.15 })
-        .from('.h-t1',      { autoAlpha: 0, y: 80, skewY: 3, duration: 1.1 }, '-=0.35')
-        .from('.h-t2',      { autoAlpha: 0, y: 80, skewY: 3, duration: 1.1 }, '-=0.95')
-        .from('.h-sub',     { autoAlpha: 0, y: 28, duration: 0.75 }, '-=0.7')
-        .from('.h-cta > *', { autoAlpha: 0, y: 22, stagger: 0.1, duration: 0.65 }, '-=0.5')
-        .from('.stat-card', { autoAlpha: 0, y: 36, scale: 0.9, stagger: 0.07, duration: 0.75, ease: 'back.out(1.6)' }, '-=0.4')
+    gsap.registerPlugin(ScrollTrigger)
 
-      document.querySelectorAll('[data-reveal]').forEach((el: any) => {
-        gsap.from(el, {
-          autoAlpha: 0, y: 44, duration: 0.85, ease: 'power3.out',
-          delay: parseFloat(el.dataset.delay || '0'),
-          scrollTrigger: { trigger: el, start: 'top 92%', toggleActions: 'play none none none' },
-        })
-      })
+    gsap.set('.hero-content', { autoAlpha: 1 })
+    const heroTl = gsap.timeline({ defaults: { ease: 'expo.out' } })
+      .from('.h-badge',   { autoAlpha: 0, y: 20, duration: 0.7, delay: 0.15 })
+      .from('.h-t1',      { autoAlpha: 0, y: 80, skewY: 3, duration: 1.1 }, '-=0.35')
+      .from('.h-t2',      { autoAlpha: 0, y: 80, skewY: 3, duration: 1.1 }, '-=0.95')
+      .from('.h-sub',     { autoAlpha: 0, y: 28, duration: 0.75 }, '-=0.7')
+      .from('.h-cta > *', { autoAlpha: 0, y: 22, stagger: 0.1, duration: 0.65 }, '-=0.5')
+      .from('.stat-card', { autoAlpha: 0, y: 36, scale: 0.9, stagger: 0.07, duration: 0.75, ease: 'back.out(1.6)' }, '-=0.4')
 
-      /* 3D tilt on feature cards */
-      document.querySelectorAll('.feat-card').forEach((card: any) => {
-        card.addEventListener('mousemove', (e: any) => {
-          const r = card.getBoundingClientRect()
-          const x = (e.clientX - r.left - r.width / 2) / r.width
-          const y = (e.clientY - r.top - r.height / 2) / r.height
-          gsap.to(card, { rotateY: x * 10, rotateX: -y * 10, duration: 0.4, ease: 'power2.out', transformPerspective: 1000 })
-        })
-        card.addEventListener('mouseleave', () => {
-          gsap.to(card, { rotateX: 0, rotateY: 0, duration: 0.65, ease: 'elastic.out(1,0.5)' })
-        })
-      })
-
-      /* count-up */
-      document.querySelectorAll('[data-count]').forEach((el: any) => {
-        const raw = el.dataset.count
-        const num = parseFloat(raw.replace(/[^0-9.]/g, ''))
-        const suf = raw.replace(/[0-9.]/g, '')
-        const obj = { v: 0 }
-        gsap.to(obj, {
-          v: num, duration: 2.2, ease: 'power2.out',
-          onUpdate: () => { el.textContent = Math.round(obj.v) + suf },
-          scrollTrigger: { trigger: el, start: 'top 93%', once: true },
-        })
-      })
-
-      /* NASA orb rings */
-      gsap.to('.ring-a', { rotation: 360,  duration: 18, ease: 'none', repeat: -1, transformOrigin: '50% 50%' })
-      gsap.to('.ring-b', { rotation: -360, duration: 11, ease: 'none', repeat: -1, transformOrigin: '50% 50%' })
-      gsap.to('.ring-c', { rotation: 360,  duration: 30, ease: 'none', repeat: -1, transformOrigin: '50% 50%' })
-
-      /* floating dots */
-      document.querySelectorAll('.float-dot').forEach((d: any, i) => {
-        gsap.to(d, { y: -(18 + i * 7), x: (i % 2 ? 1 : -1) * (5 + i * 3), duration: 2.8 + i * 0.4, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: i * 0.35 })
+    document.querySelectorAll('[data-reveal]').forEach((el: any) => {
+      gsap.from(el, {
+        autoAlpha: 0, y: 44, duration: 0.85, ease: 'power3.out',
+        delay: parseFloat(el.dataset.delay || '0'),
+        scrollTrigger: { trigger: el, start: 'top 92%', toggleActions: 'play none none none' },
       })
     })
+
+    /* 3D tilt on feature cards */
+    document.querySelectorAll('.feat-card').forEach((card: any) => {
+      card.addEventListener('mousemove', (e: any) => {
+        const r = card.getBoundingClientRect()
+        const x = (e.clientX - r.left - r.width / 2) / r.width
+        const y = (e.clientY - r.top - r.height / 2) / r.height
+        gsap.to(card, { rotateY: x * 10, rotateX: -y * 10, duration: 0.4, ease: 'power2.out', transformPerspective: 1000 })
+      })
+      card.addEventListener('mouseleave', () => {
+        gsap.to(card, { rotateX: 0, rotateY: 0, duration: 0.65, ease: 'elastic.out(1,0.5)' })
+      })
+    })
+
+    /* count-up */
+    document.querySelectorAll('[data-count]').forEach((el: any) => {
+      const raw = el.dataset.count
+      const num = parseFloat(raw.replace(/[^0-9.]/g, ''))
+      const suf = raw.replace(/[0-9.]/g, '')
+      const obj = { v: 0 }
+      gsap.to(obj, {
+        v: num, duration: 2.2, ease: 'power2.out',
+        onUpdate: () => { el.textContent = Math.round(obj.v) + suf },
+        scrollTrigger: { trigger: el, start: 'top 93%', once: true },
+      })
+    })
+
+    /* NASA orb rings */
+    gsap.to('.ring-a', { rotation: 360,  duration: 18, ease: 'none', repeat: -1, transformOrigin: '50% 50%' })
+    gsap.to('.ring-b', { rotation: -360, duration: 11, ease: 'none', repeat: -1, transformOrigin: '50% 50%' })
+    gsap.to('.ring-c', { rotation: 360,  duration: 30, ease: 'none', repeat: -1, transformOrigin: '50% 50%' })
+
+    /* floating dots */
+    document.querySelectorAll('.float-dot').forEach((d: any, i) => {
+      gsap.to(d, { y: -(18 + i * 7), x: (i % 2 ? 1 : -1) * (5 + i * 3), duration: 2.8 + i * 0.4, ease: 'sine.inOut', repeat: -1, yoyo: true, delay: i * 0.35 })
+    })
+
+    // Cleanup: kill all ScrollTriggers and tweens on unmount
+    return () => {
+      heroTl.kill()
+      ScrollTrigger.getAll().forEach(t => t.kill())
+      gsap.killTweensOf('.ring-a, .ring-b, .ring-c, .float-dot')
+    }
   }, [])
 
   /* session */
   useEffect(() => {
     setMounted(true)
+    const supabase = createClient()
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) return
       supabase.from('profiles').select('*').eq('id', session.user.id).single()

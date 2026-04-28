@@ -13,19 +13,18 @@
 
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ScrollSmoother } from 'gsap/ScrollSmoother';
 import { TextPlugin } from 'gsap/TextPlugin';
-import { CustomEase } from 'gsap/CustomEase';
 
 // ─── Register all plugins ────────────────────────────────────────────────────
 if (typeof window !== 'undefined') {
-  gsap.registerPlugin(ScrollTrigger, ScrollSmoother, TextPlugin, CustomEase);
-
-  // Custom eases used across the app
-  CustomEase.create('stellarIn',   '0.16, 1, 0.3, 1');    // smooth power entrance
-  CustomEase.create('stellarBack', '0.34, 1.56, 0.64, 1'); // bouncy back
-  CustomEase.create('stellarOut',  '0.55, 0, 1, 0.45');   // sharp exit
+  gsap.registerPlugin(ScrollTrigger, TextPlugin);
 }
+
+// ─── Custom ease aliases (using built-in equivalents) ────────────────────────
+// These match the old CustomEase definitions without requiring the premium plugin
+const STELLAR_IN   = 'power3.out';      // ~cubic-bezier(0.16, 1, 0.3, 1)
+const STELLAR_BACK = 'back.out(1.4)';   // ~cubic-bezier(0.34, 1.56, 0.64, 1)
+const STELLAR_OUT  = 'power2.in';       // ~cubic-bezier(0.55, 0, 1, 0.45)
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Target = gsap.TweenTarget;
@@ -55,7 +54,7 @@ export function fadeIn(target: Target, vars?: Vars) {
 export function fadeUp(target: Target, vars?: Vars) {
   return gsap.fromTo(target,
     { opacity: 0, y: 32 },
-    { opacity: 1, y: 0, duration: DURATION.slow, ease: 'stellarIn', ...vars }
+    { opacity: 1, y: 0, duration: DURATION.slow, ease: STELLAR_IN, ...vars }
   );
 }
 
@@ -63,7 +62,7 @@ export function fadeUp(target: Target, vars?: Vars) {
 export function fadeDown(target: Target, vars?: Vars) {
   return gsap.fromTo(target,
     { opacity: 0, y: -24 },
-    { opacity: 1, y: 0, duration: DURATION.slow, ease: 'stellarIn', ...vars }
+    { opacity: 1, y: 0, duration: DURATION.slow, ease: STELLAR_IN, ...vars }
   );
 }
 
@@ -71,7 +70,7 @@ export function fadeDown(target: Target, vars?: Vars) {
 export function fadeLeft(target: Target, vars?: Vars) {
   return gsap.fromTo(target,
     { opacity: 0, x: -40 },
-    { opacity: 1, x: 0, duration: DURATION.slow, ease: 'stellarIn', ...vars }
+    { opacity: 1, x: 0, duration: DURATION.slow, ease: STELLAR_IN, ...vars }
   );
 }
 
@@ -79,7 +78,7 @@ export function fadeLeft(target: Target, vars?: Vars) {
 export function fadeRight(target: Target, vars?: Vars) {
   return gsap.fromTo(target,
     { opacity: 0, x: 40 },
-    { opacity: 1, x: 0, duration: DURATION.slow, ease: 'stellarIn', ...vars }
+    { opacity: 1, x: 0, duration: DURATION.slow, ease: STELLAR_IN, ...vars }
   );
 }
 
@@ -87,7 +86,7 @@ export function fadeRight(target: Target, vars?: Vars) {
 export function popIn(target: Target, vars?: Vars) {
   return gsap.fromTo(target,
     { opacity: 0, scale: 0.6, rotation: -10 },
-    { opacity: 1, scale: 1, rotation: 0, duration: DURATION.slow, ease: 'stellarBack', ...vars }
+    { opacity: 1, scale: 1, rotation: 0, duration: DURATION.slow, ease: STELLAR_BACK, ...vars }
   );
 }
 
@@ -95,21 +94,21 @@ export function popIn(target: Target, vars?: Vars) {
 export function scaleIn(target: Target, vars?: Vars) {
   return gsap.fromTo(target,
     { opacity: 0, scale: 0.94 },
-    { opacity: 1, scale: 1, duration: DURATION.slow, ease: 'stellarIn', ...vars }
+    { opacity: 1, scale: 1, duration: DURATION.slow, ease: STELLAR_IN, ...vars }
   );
 }
 
 /** Exit: fade + move up */
 export function exitUp(target: Target, vars?: Vars) {
   return gsap.to(target,
-    { opacity: 0, y: -28, scale: 0.96, duration: DURATION.fast, ease: 'stellarOut', ...vars }
+    { opacity: 0, y: -28, scale: 0.96, duration: DURATION.fast, ease: STELLAR_OUT, ...vars }
   );
 }
 
 /** Exit: fade + scale down */
 export function exitScale(target: Target, vars?: Vars) {
   return gsap.to(target,
-    { opacity: 0, scale: 0.9, duration: DURATION.fast, ease: 'stellarOut', ...vars }
+    { opacity: 0, scale: 0.9, duration: DURATION.fast, ease: STELLAR_OUT, ...vars }
   );
 }
 
@@ -128,7 +127,7 @@ export function staggerReveal(targets: Target, stagger = 0.08, vars?: Vars) {
     {
       opacity: 1, y: 0,
       duration: DURATION.normal,
-      ease: 'stellarIn',
+      ease: STELLAR_IN,
       stagger,
       ...vars,
     }
@@ -139,7 +138,7 @@ export function staggerReveal(targets: Target, stagger = 0.08, vars?: Vars) {
 export function staggerLeft(targets: Target, stagger = 0.07, vars?: Vars) {
   return gsap.fromTo(targets,
     { opacity: 0, x: -30 },
-    { opacity: 1, x: 0, duration: DURATION.normal, ease: 'stellarIn', stagger, ...vars }
+    { opacity: 1, x: 0, duration: DURATION.normal, ease: STELLAR_IN, stagger, ...vars }
   );
 }
 
@@ -147,7 +146,7 @@ export function staggerLeft(targets: Target, stagger = 0.07, vars?: Vars) {
 export function staggerPop(targets: Target, stagger = 0.06, vars?: Vars) {
   return gsap.fromTo(targets,
     { opacity: 0, scale: 0.7 },
-    { opacity: 1, scale: 1, duration: DURATION.normal, ease: 'stellarBack', stagger, ...vars }
+    { opacity: 1, scale: 1, duration: DURATION.normal, ease: STELLAR_BACK, stagger, ...vars }
   );
 }
 
@@ -170,7 +169,7 @@ export interface PageEnterConfig {
  * Used on login, register, landing pages, etc.
  */
 export function pageEnter(config: PageEnterConfig): gsap.core.Timeline {
-  const tl = gsap.timeline({ defaults: { ease: 'stellarIn' } });
+  const tl = gsap.timeline({ defaults: { ease: STELLAR_IN } });
 
   if (config.badge)
     tl.fromTo(config.badge,
@@ -180,7 +179,7 @@ export function pageEnter(config: PageEnterConfig): gsap.core.Timeline {
   if (config.logo)
     tl.fromTo(config.logo,
       { opacity: 0, scale: 0.55, rotation: -15 },
-      { opacity: 1, scale: 1, rotation: 0, duration: 0.65, ease: 'stellarBack' },
+      { opacity: 1, scale: 1, rotation: 0, duration: 0.65, ease: STELLAR_BACK },
       '-=0.25');
 
   if (config.heading)
@@ -222,12 +221,12 @@ export function sessionCardEnter(els: {
   btns?:   Target[];
   back?:   Target;
 }): gsap.core.Timeline {
-  const tl = gsap.timeline({ defaults: { ease: 'stellarIn' } });
+  const tl = gsap.timeline({ defaults: { ease: STELLAR_IN } });
 
   if (els.avatar)
     tl.fromTo(els.avatar,
       { opacity: 0, scale: 0.5, rotation: -20 },
-      { opacity: 1, scale: 1, rotation: 0, duration: 0.55, ease: 'stellarBack' });
+      { opacity: 1, scale: 1, rotation: 0, duration: 0.55, ease: STELLAR_BACK });
 
   if (els.info)
     tl.fromTo(els.info,
@@ -357,52 +356,19 @@ export function initScrollReveal(): ScrollTrigger[] {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  5. SMOOTH SCROLL — ScrollSmoother wrapper
+//  5. SMOOTH SCROLL — native scroll-behavior wrapper (no premium plugin)
 // ════════════════════════════════════════════════════════════════════════════
 
-let _smoother: InstanceType<typeof ScrollSmoother> | null = null;
-
-/**
- * Initialize GSAP ScrollSmoother on the whole page.
- * Requires this HTML structure:
- *
- *   <div id="smooth-wrapper">
- *     <div id="smooth-content">
- *       {children}
- *     </div>
- *   </div>
- *
- * @param speed   Scroll speed multiplier (default 1)
- * @param smooth  Smoothing lag in seconds (default 1.2)
- * @param effects Enable data-speed / data-lag parallax (default true)
- */
-export function initSmoothScroll(speed = 1, smooth = 1.2, effects = true) {
-  if (typeof window === 'undefined') return null;
-
-  // Destroy existing smoother before re-init
-  _smoother?.kill();
-
-  _smoother = ScrollSmoother.create({
-    wrapper: '#smooth-wrapper',
-    content: '#smooth-content',
-    smooth,
-    speed,
-    effects,
-    normalizeScroll: true,
-  });
-
-  return _smoother;
-}
-
-/** Get the active ScrollSmoother instance */
-export function getSmoother() { return _smoother; }
-
-/** Scroll smoothly to a target element or position */
+/** Scroll smoothly to a target element or pixel position */
 export function scrollTo(target: string | number | Element, offsetY = 0) {
-  if (_smoother) {
-    _smoother.scrollTo(target, true, `top ${offsetY}px`);
+  if (typeof target === 'number') {
+    window.scrollTo({ top: target - offsetY, behavior: 'smooth' });
   } else {
-    gsap.to(window, { scrollTo: { y: target, offsetY }, duration: 1, ease: 'stellarIn' });
+    const el = typeof target === 'string' ? document.querySelector(target) : target;
+    if (el) {
+      const y = el.getBoundingClientRect().top + window.scrollY - offsetY;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
   }
 }
 
@@ -502,7 +468,7 @@ export function animateChars(parent: string | Element, stagger = 0.03, delay = 0
   const chars = Array.from(el.querySelectorAll('[data-char]'));
   return gsap.fromTo(chars,
     { opacity: 0, y: 24, rotationX: -90 },
-    { opacity: 1, y: 0, rotationX: 0, stagger, delay, duration: 0.5, ease: 'stellarBack' }
+    { opacity: 1, y: 0, rotationX: 0, stagger, delay, duration: 0.5, ease: STELLAR_BACK }
   );
 }
 
@@ -550,4 +516,4 @@ export function killTweens(...targets: Target[]) {
 }
 
 // ─── Re-export gsap + ScrollTrigger for direct use ───────────────────────────
-export { gsap, ScrollTrigger, ScrollSmoother };
+export { gsap, ScrollTrigger, STELLAR_IN, STELLAR_BACK, STELLAR_OUT };

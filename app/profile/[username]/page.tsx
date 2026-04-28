@@ -515,7 +515,7 @@ export default function UserProfilePage({ params }: { params: { username: string
    CSS
 ══════════════════════════════════ */
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:wght@400;500;600&display=swap');
+/* fonts loaded globally via next/font in layout.tsx */
 
 .up-root { min-height:100svh; background:#060810; padding-top:64px; font-family:'DM Sans',sans-serif; color:rgba(226,232,240,.97); }
 

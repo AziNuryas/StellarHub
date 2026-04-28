@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { X, Camera, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { useAuth } from '@/app/contexts/AuthContext'
 
@@ -13,6 +13,7 @@ interface CreatePostModalProps {
 
 export default function CreatePostModal({ onPostCreated }: CreatePostModalProps) {
   const { user } = useAuth()
+  const supabase = createClient()
   const [content, setContent] = useState('')
   const [image, setImage] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)

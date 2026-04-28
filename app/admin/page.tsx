@@ -138,8 +138,7 @@ export default function RegisterPage() {
   return (
     <div className="sh-root">
       <style>{`
-        /* ── FONTS (sama persis kaya landing) ── */
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+        /* ── FONTS — loaded globally via next/font in layout.tsx ── */
 
         /* ── RESET / BASE ── */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

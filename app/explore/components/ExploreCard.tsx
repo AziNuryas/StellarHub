@@ -370,7 +370,7 @@ export function ExploreCard({ content, onLike, onSave, onClick }: ExploreCardPro
       `}</style>
 
       <div className="card-image">
-        {!imageError ? (
+        {!imageError && imageUrl ? (
           <img
             src={imageUrl}
             alt={content.title || 'Space image'}

@@ -237,7 +237,7 @@ export default function LoginPage() {
   return (
     <div className="sh-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+        /* fonts loaded globally via next/font in layout.tsx */
         *,*::before,*::after{box-sizing:border-box;}
         .sh-root{min-height:100svh;background:#050810;color:#f0f0ff;font-family:'DM Sans',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px 20px;position:relative;overflow:hidden;}
         .lg-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}

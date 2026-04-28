@@ -1,7 +1,7 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 
 interface User {
@@ -22,8 +22,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const NO_REDIRECT_PATHS = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/nasa', '/explore']
-
 function clearAllAuthStorage() {
   if (typeof window === 'undefined') return
   Object.keys(localStorage).forEach(key => {
@@ -43,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
+  const supabase = createClient()
 
   const saveUserToLocalStorage = (userData: User | null) => {
     if (typeof window !== 'undefined') {
@@ -78,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const { data: { user: verifiedUser }, error } = await supabase.auth.getUser()
       if (verifiedUser && !error) {
@@ -94,7 +93,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase])
 
   useEffect(() => {
     let mounted = true

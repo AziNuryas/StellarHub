@@ -531,7 +531,7 @@ function AppNav() {
 function NavStyles() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
+      /* fonts loaded globally via next/font in layout.tsx */
 
       :root {
         --nav-bg:         rgba(5,8,16,0.82);

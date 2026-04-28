@@ -2,11 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    domains: [
-      'api.dicebear.com',
-      'ui-avatars.com',
-      'nonabstractly-unmoaning-tameka.ngrok-free.dev',
-      'localhost',
+    remotePatterns: [
+      { protocol: 'https', hostname: 'api.dicebear.com' },
+      { protocol: 'https', hostname: 'ui-avatars.com' },
+      { protocol: 'https', hostname: '*.ngrok-free.dev' },
+      { protocol: 'http',  hostname: 'localhost' },
+      { protocol: 'https', hostname: 'epic.gsfc.nasa.gov' },
+      { protocol: 'https', hostname: 'apod.nasa.gov' },
     ],
   },
 };
