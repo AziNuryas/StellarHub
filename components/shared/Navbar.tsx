@@ -304,8 +304,7 @@ function AppNav() {
 
   const navLinks = [
     { href: '/feed',      icon: Compass, label: 'Feed'      },
-    { href: '/explore',   icon: Search,  label: 'Explore'   },
-    { href: '/community', icon: Users,   label: 'Community' },
+    { href: '/explore',   icon: Search,  label: 'News & Events'   },
     { href: '/nasa',      icon: Star,    label: 'NASA'       },
   ]
 

@@ -16,49 +16,7 @@ interface ExploreCardProps {
   onClick?: () => void
 }
 
-// Gambar NASA langsung dari API
-const NASA_IMAGES = [
-  'https://images-assets.nasa.gov/image/PIA12348/PIA12348~orig.jpg',
-  'https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e000271/GSFC_20171208_Archive_e000271~orig.jpg',
-  'https://images-assets.nasa.gov/image/PIA17563/PIA17563~orig.jpg',
-  'https://images-assets.nasa.gov/image/hubble-observes-one-of-a-kind-star-nicknamed-nasty-1_22466134945_o/hubble-observes-one-of-a-kind-star-nicknamed-nasty-1_22466134945_o~orig.jpg',
-]
 
-// Gambar nebula keren
-const NEBULA_IMAGES = [
-  'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1464802686167-b939a6910659?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1541873676-a18131494184?q=80&w=2070&auto=format&fit=crop',
-]
-
-// Gambar planet
-const PLANET_IMAGES = [
-  'https://images.unsplash.com/photo-1614728263952-84ea256f9679?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1614314107768-6018061b5b72?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1639479858802-1fbf29d4b9b5?q=80&w=2070&auto=format&fit=crop',
-]
-
-// Fungsi untuk mendapatkan gambar berdasarkan konten
-function getContentImage(content: ExploreContent): string {
-  const text = (content.title || content.content_text || '').toLowerCase()
-  const hashtags = content.tags || []
-  
-  if (content.source_type === 'nasa_apod' || hashtags.includes('nasa') || hashtags.includes('apod')) {
-    return NASA_IMAGES[Math.floor(Math.random() * NASA_IMAGES.length)]
-  }
-  
-  if (text.includes('nebula') || hashtags.includes('nebula') || hashtags.includes('Nebula')) {
-    return NEBULA_IMAGES[Math.floor(Math.random() * NEBULA_IMAGES.length)]
-  }
-  
-  if (text.includes('planet') || text.includes('mars') || text.includes('jupiter') || 
-      hashtags.includes('planet') || hashtags.includes('mars')) {
-    return PLANET_IMAGES[Math.floor(Math.random() * PLANET_IMAGES.length)]
-  }
-  
-  return NEBULA_IMAGES[Math.floor(Math.random() * NEBULA_IMAGES.length)]
-}
 
 export function ExploreCard({ content, onLike, onSave, onClick }: ExploreCardProps) {
   const router = useRouter()
@@ -70,7 +28,7 @@ export function ExploreCard({ content, onLike, onSave, onClick }: ExploreCardPro
   const [currentUser, setCurrentUser] = useState<any>(null)
 
   useEffect(() => {
-    setImageUrl(getContentImage(content))
+    setImageUrl(content.image_url || '')
     checkAuth()
   }, [content])
 
@@ -159,7 +117,7 @@ export function ExploreCard({ content, onLike, onSave, onClick }: ExploreCardPro
 
   const handleImageError = () => {
     setImageError(true)
-    setImageUrl(NEBULA_IMAGES[Math.floor(Math.random() * NEBULA_IMAGES.length)])
+    setImageUrl('')
   }
 
   return (
@@ -428,8 +386,8 @@ export function ExploreCard({ content, onLike, onSave, onClick }: ExploreCardPro
 
         {content.tags && content.tags.length > 0 && (
           <div className="tags">
-            {content.tags.slice(0, 4).map(tag => (
-              <span key={tag} className="tag">#{tag}</span>
+            {content.tags.slice(0, 4).map((tag, index) => (
+              <span key={`${tag}-${index}`} className="tag">#{tag}</span>
             ))}
           </div>
         )}

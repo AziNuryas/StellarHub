@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   const saveUserToLocalStorage = (userData: User | null) => {
     if (typeof window !== 'undefined') {
@@ -79,7 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = useCallback(async () => {
     try {
-      const { data: { user: verifiedUser }, error } = await supabase.auth.getUser()
+      const { data: { session }, error } = await supabase.auth.getSession()
+      const verifiedUser = session?.user
       if (verifiedUser && !error) {
         const userData = await buildUserData(verifiedUser)
         setUser(userData)
@@ -88,8 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearAllAuthStorage()
         setUser(null)
       }
-    } catch {
-      setUser(null)
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        setUser(null)
+      }
     } finally {
       setLoading(false)
     }
@@ -98,6 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true
+    
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('stellarhub_user')
+      if (stored) {
+        setUser(JSON.parse(stored))
+        setLoading(false)
+      }
+    }
+    
     checkAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

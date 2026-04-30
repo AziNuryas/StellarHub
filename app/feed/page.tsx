@@ -330,7 +330,7 @@ function FollowBtn({me,target}:{me:string|null;target:string}) {
   useEffect(()=>{
     if(!me||me===target)return;
     supabase.from('follows').select('id').eq('follower_id',me).eq('following_id',target).maybeSingle()
-      .then(({data})=>setFollowing(!!data));
+      .then(({data}: {data: any})=>setFollowing(!!data));
   },[me,target]);
   if(!me||me===target||following===null) return null;
   const toggle=async(e:React.MouseEvent)=>{
@@ -643,7 +643,24 @@ function ComposeBox({user,onPost}:{user:any;onPost:(c:string,f:File[],u:string[]
    SIDEBAR
 ════════════════════════════════════════════ */
 function Sidebar({user}:{user:any}) {
+  const [supabase] = useState(() => createClient());
   const [flw,setFlw]=useState<Record<string,boolean>>({});
+  const [hashtags, setHashtags] = useState<any[]>([]);
+  const [suggested, setSuggested] = useState<any[]>([]);
+
+  useEffect(() => {
+    supabase.rpc('get_trending_hashtags', { limit_count: 5 }).then(({data}) => {
+      if(data) setHashtags(data);
+    });
+    
+    supabase.from('profiles')
+      .select('username, avatar_url, bio')
+      .neq('id', user?.id || '00000000-0000-0000-0000-000000000000')
+      .limit(4)
+      .then(({data}) => {
+        if(data) setSuggested(data);
+      });
+  }, [user]);
   return (
     <aside>
       <div className="scard" style={{padding:0,overflow:'hidden'}}>
@@ -659,16 +676,15 @@ function Sidebar({user}:{user:any}) {
       </div>
       <div className="scard">
         <p className="stitle"><Flame style={{width:11,height:11,color:'#f97316'}}/>Trending Now</p>
-        {[['#MarsRover','4.2k',true],['#APOD','3.1k',true],['#JamesWebb','2.8k',false],['#DeepSpace','2.1k',false],['#ISS','1.4k',false]].map(([t,c,h],i)=>(
-          <div key={String(t)} className="trend-row">
+        {hashtags.map((t,i)=>(
+          <div key={String(t.hashtag)} className="trend-row">
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               <span style={{fontSize:10,fontWeight:700,color:'rgba(100,116,139,.3)',width:14,textAlign:'right',fontFamily:"'Archivo Black',sans-serif"}}>{i+1}</span>
               <div>
                 <div style={{display:'flex',alignItems:'center',gap:5}}>
-                  <span style={{fontSize:13,fontWeight:700,color:'rgba(196,181,253,.9)',fontFamily:"'Archivo Black',sans-serif"}}>{t}</span>
-                  {h&&<Flame style={{width:10,height:10,color:'#f97316'}}/>}
+                  <span style={{fontSize:13,fontWeight:700,color:'rgba(196,181,253,.9)',fontFamily:"'Archivo Black',sans-serif"}}>{t.hashtag}</span>
                 </div>
-                <span style={{fontSize:11,color:'var(--muted)'}}>{c} posts</span>
+                <span style={{fontSize:11,color:'var(--muted)'}}>{t.count} posts</span>
               </div>
             </div>
             <BarChart2 style={{width:13,height:13,color:'var(--muted)',opacity:.25}}/>
@@ -677,15 +693,15 @@ function Sidebar({user}:{user:any}) {
       </div>
       <div className="scard">
         <p className="stitle"><Sparkles style={{width:11,height:11,color:'var(--accent)'}}/>Suggested</p>
-        {[{n:'NebulaMaster',s:'12.4k followers'},{n:'StargazerX',s:'8.9k followers'},{n:'CassiniPro',s:'5.2k followers'}].map(u=>(
-          <div key={u.n} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'1px solid rgba(255,255,255,.04)'}}>
-            <Avatar name={u.n} size={36}/>
+        {suggested.map(u=>(
+          <div key={u.username} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'1px solid rgba(255,255,255,.04)'}}>
+            <Avatar name={u.username} url={u.avatar_url} size={36}/>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,color:'var(--txt)',fontFamily:"'Archivo Black',sans-serif",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.n}</div>
-              <div style={{fontSize:11,color:'var(--muted)',marginTop:1}}>{u.s}</div>
+              <div style={{fontSize:13,fontWeight:700,color:'var(--txt)',fontFamily:"'Archivo Black',sans-serif",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u.username}</div>
+              <div style={{fontSize:11,color:'var(--muted)',marginTop:1,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{u.bio || 'Space Enthusiast'}</div>
             </div>
-            <button className={`sflw${flw[u.n]?' sflw-on':''}`} onClick={()=>setFlw(v=>({...v,[u.n]:!v[u.n]}))}>
-              {flw[u.n]?<><Check style={{width:9,height:9}}/>Following</>:<>+ Follow</>}
+            <button className={`sflw${flw[u.username]?' sflw-on':''}`} onClick={()=>setFlw(v=>({...v,[u.username]:!v[u.username]}))}>
+              {flw[u.username]?<><Check style={{width:9,height:9}}/>Following</>:<>+ Follow</>}
             </button>
           </div>
         ))}
@@ -959,7 +975,7 @@ html{scroll-behavior:smooth}body{overflow-x:hidden}
    MAIN
 ════════════════════════════════════════════ */
 export default function FeedPage() {
-  const supabase=createClient();
+  const [supabase] = useState(() => createClient());
   const [posts,setPosts]=useState<Post[]>([]);
   const [loading,setLoading]=useState(true);
   const [user,setUser]=useState<any>(null);
@@ -977,17 +993,34 @@ export default function FeedPage() {
   useEffect(()=>{if(!loading){const t=setTimeout(()=>setNewCount(2),20000);return()=>clearTimeout(t);}},[loading]);
 
   const fetchUser=async()=>{
-    const{data:{user}}=await supabase.auth.getUser();setUser(user);
-    if(user){const{data}=await supabase.from('bookmarks').select('post_id').eq('user_id',user.id).not('post_id','is',null);if(data)setBookmarks(new Set(data.map((b:any)=>b.post_id)));}
+    try {
+      const{data:{user}}=await supabase.auth.getUser();setUser(user);
+      if(user){const{data}=await supabase.from('bookmarks').select('post_id').abortSignal(AbortSignal.timeout(8000)).eq('user_id',user.id).not('post_id','is',null);if(data)setBookmarks(new Set(data.map((b:any)=>b.post_id)));}
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') console.error("fetchUser error:", e);
+    }
   };
+  const [debugError, setDebugError] = useState<any>(null);
   const fetchPosts=async()=>{
     try{
+      console.log("STARTING FETCH POSTS");
+      const start = Date.now();
       const{data,error}=await supabase.from('posts')
         .select(`*,profiles(username,avatar_url),likes(id,user_id),comments(id,content,created_at,user_id,post_id,profiles(username,avatar_url)),post_images(id,url,order_index)`)
+        .abortSignal(AbortSignal.timeout(8000))
         .order('created_at',{ascending:false}).limit(15);
-      if(error)throw error;setPosts(data||[]);
-    }catch{toast.error('Failed to load posts');}
-    finally{setLoading(false);}
+      console.log(`FETCH POSTS FINISHED in ${Date.now() - start}ms`, data, error);
+      if(error) { setDebugError(error); throw error; }
+      setPosts(data||[]);
+    }catch(e: any){
+      if (e?.name !== 'AbortError') {
+        console.log(`FETCH POSTS FAILED in ${Date.now() - Date.now()}ms`, e);
+        console.error("fetchPosts error:", e);
+        toast.error('Failed to load posts');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePost=async(content:string,imgFiles:File[],imageUrls:string[])=>{
@@ -1040,6 +1073,10 @@ export default function FeedPage() {
   };
 
   const visible=tab==='trending'?[...posts].sort((a,b)=>((b.likes?.length??0)+(b.comments?.length??0))-((a.likes?.length??0)+(a.comments?.length??0))):posts;
+
+  if (debugError) {
+    return <div style={{marginTop:100, color:'red'}}><pre>{JSON.stringify(debugError, null, 2)}</pre></div>
+  }
 
   return (
     <div className="feed-page">

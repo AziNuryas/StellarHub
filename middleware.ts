@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
   // ✅ PROTECTED PAGES — redirect to landing if not logged in
   const protectedPaths = [
     '/feed', '/profile', '/settings', '/post',
-    '/dashboard', '/community', '/nasa', '/explore',
+    '/dashboard', '/nasa', '/explore',
     '/notifications',
   ]
 

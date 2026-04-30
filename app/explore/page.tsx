@@ -2,53 +2,25 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { ExploreCard } from './components/ExploreCard'
-import { ExploreDetailModal } from './components/ExploreDetailModal'
-import { ExploreContent, TrendingHashtag, ContentSource } from './types'
-import { 
-  Search, TrendingUp, Clock, Flame, Filter, 
-  X, Loader2, ChevronDown, Sparkles, Rocket,
-  Grid, List, Eye, Heart, MessageCircle
-} from 'lucide-react'
+import { Search, Clock, ExternalLink, Calendar, Loader2, X, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
-
+  
 export default function ExplorePage() {
-  const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
   
   // State
-  const [contents, setContents] = useState<ExploreContent[]>([])
-  const [trendingHashtags, setTrendingHashtags] = useState<TrendingHashtag[]>([])
+  const [contents, setContents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(0)
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
-  const [showFilters, setShowFilters] = useState(false)
-  const [selectedType, setSelectedType] = useState<ContentSource | 'all'>(searchParams.get('type') as any || 'all')
-  const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'trending'>(
-    (searchParams.get('sort') as any) || 'latest'
-  )
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'all'>(
-    (searchParams.get('time') as any) || 'week'
-  )
-  const [selectedContent, setSelectedContent] = useState<ExploreContent | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
   
   const observerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Categories untuk filter
-  const categories = [
-    { id: 'all', label: 'Semua', icon: '🌌' },
-    { id: 'nasa_apod', label: 'NASA APOD', icon: '🚀' },
-    { id: 'user_post', label: 'Postingan Komunitas', icon: '📝' },
-  ]
-
-  // Fetch explore content
+  // Fetch news content from Spaceflight News API
   const fetchExploreContent = useCallback(async (reset = false) => {
     try {
       if (reset) {
@@ -59,87 +31,38 @@ export default function ExplorePage() {
         setLoadingMore(true)
       }
 
-      let query = supabase
-        .from('explore_content_view')
-        .select('*')
-
-      // Filter by type
-      if (selectedType !== 'all') {
-        query = query.eq('source_type', selectedType)
-      }
-
-      // Filter by search query
-      if (searchQuery) {
-        const { data } = await supabase
-          .rpc('search_explore', { search_query: searchQuery })
-        
-        if (data) {
-          setContents(data as any)
-          setLoading(false)
-          setLoadingMore(false)
-          return
-        }
-      }
-
-      // Sorting
-      switch (sortBy) {
-        case 'latest':
-          query = query.order('original_created_at', { ascending: false })
-          break
-        case 'popular':
-          query = query.order('likes_count', { ascending: false })
-          break
-        case 'trending':
-          query = query
-            .gte('original_created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-            .order('likes_count', { ascending: false })
-          break
-      }
-
-      // Pagination
-      const pageSize = 20
-      const from = (reset ? 0 : page) * pageSize
-      const to = from + pageSize - 1
+      const offset = (reset ? 0 : page) * 20
+      const searchParam = searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''
+      const res = await fetch(`https://api.spaceflightnewsapi.net/v4/articles/?limit=20&offset=${offset}${searchParam}`, {
+        signal: AbortSignal.timeout(8000)
+      })
       
-      const { data, error } = await query.range(from, to)
-
-      if (error) throw error
+      if (!res.ok) throw new Error('API Error')
+      const data = await res.json()
 
       if (reset) {
-        setContents(data || [])
+        setContents(data.results || [])
       } else {
-        setContents(prev => [...prev, ...(data || [])])
+        setContents(prev => [...prev, ...(data.results || [])])
       }
 
-      setHasMore((data?.length || 0) === pageSize)
+      setHasMore(data.next !== null)
       setPage(prev => reset ? 1 : prev + 1)
-
-    } catch (error) {
-      console.error('Error fetching explore content:', error)
-      toast.error('Gagal memuat konten')
+      
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        console.error('Error fetching news:', error)
+        toast.error('Gagal memuat berita luar angkasa')
+      }
     } finally {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [selectedType, searchQuery, sortBy, page])
-
-  // Fetch trending hashtags
-  const fetchTrendingHashtags = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .rpc('get_trending_hashtags', { limit_count: 10 })
-
-      if (error) throw error
-      setTrendingHashtags(data || [])
-    } catch (error) {
-      console.error('Error fetching trending hashtags:', error)
-    }
-  }, [])
+  }, [searchQuery, page])
 
   // Initial load
   useEffect(() => {
     fetchExploreContent(true)
-    fetchTrendingHashtags()
   }, [])
 
   // Refresh when filters change
@@ -149,15 +72,12 @@ export default function ExplorePage() {
       
       const params = new URLSearchParams()
       if (searchQuery) params.set('q', searchQuery)
-      if (selectedType !== 'all') params.set('type', selectedType)
-      if (sortBy !== 'latest') params.set('sort', sortBy)
-      if (timeRange !== 'week') params.set('time', timeRange)
       
       router.push(`/explore?${params.toString()}`)
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [selectedType, searchQuery, sortBy, timeRange])
+  }, [searchQuery])
 
   // Infinite scroll
   useEffect(() => {
@@ -177,11 +97,7 @@ export default function ExplorePage() {
     return () => observer.disconnect()
   }, [loading, loadingMore, hasMore, searchQuery])
 
-  // Handle content click
-  const handleContentClick = (content: ExploreContent) => {
-    setSelectedContent(content)
-    setModalOpen(true)
-  }
+
 
   // Clear search
   const clearSearch = () => {
@@ -197,6 +113,7 @@ export default function ExplorePage() {
     setSearchQuery(`#${tag}`)
     fetchExploreContent(true)
   }
+
 
   return (
     <div className="explore-page">
@@ -534,11 +451,12 @@ export default function ExplorePage() {
       <div className="explore-container">
         {/* Header */}
         <div className="explore-header">
-          <h1 className="explore-title">Explore the Cosmos</h1>
+          <h1 className="explore-title">Cosmic Events & Discovery</h1>
           <p className="explore-subtitle">
-            Discover amazing content from NASA and the StellarHub community
+            Discover upcoming celestial schedules, NASA archives, and community posts.
           </p>
         </div>
+
 
         {/* Search */}
         <div className="search-section">
@@ -550,7 +468,7 @@ export default function ExplorePage() {
                   ref={searchInputRef}
                   type="text"
                   className="search-input"
-                  placeholder="Search NASA images, posts, hashtags..."
+                  placeholder="Cari berita luar angkasa, fenomena alam, asteroid..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -561,168 +479,86 @@ export default function ExplorePage() {
                 </button>
               )}
             </div>
-            <button
-              className={`filter-button ${showFilters ? 'active' : ''}`}
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Filter size={16} />
-              <span>Filter</span>
-              <ChevronDown size={14} style={{ transform: showFilters ? 'rotate(180deg)' : 'none' }} />
-            </button>
-          </div>
-
-          {/* Filter Panel */}
-          {showFilters && (
-            <div className="filter-panel">
-              <div className="filter-grid">
-                <div className="filter-group">
-                  <span className="filter-label">Sort By</span>
-                  <select
-                    className="filter-select"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                  >
-                    <option value="latest">Terbaru</option>
-                    <option value="popular">Terpopuler</option>
-                    <option value="trending">Trending Minggu Ini</option>
-                  </select>
-                </div>
-
-                <div className="filter-group">
-                  <span className="filter-label">Time Range</span>
-                  <select
-                    className="filter-select"
-                    value={timeRange}
-                    onChange={(e) => setTimeRange(e.target.value as any)}
-                  >
-                    <option value="day">Hari Ini</option>
-                    <option value="week">Minggu Ini</option>
-                    <option value="month">Bulan Ini</option>
-                    <option value="all">Semua Waktu</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="filter-actions">
-                <button
-                  className="clear-btn"
-                  onClick={() => {
-                    setSelectedType('all')
-                    setSortBy('latest')
-                    setTimeRange('week')
-                    setSearchQuery('')
-                  }}
-                >
-                  Reset Filter
-                </button>
-                <button
-                  className="apply-btn"
-                  onClick={() => {
-                    setShowFilters(false)
-                    fetchExploreContent(true)
-                  }}
-                >
-                  Terapkan
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Trending Hashtags */}
-        {trendingHashtags.length > 0 && !searchQuery && (
-          <div className="trending-section">
-            <div className="trending-title">
-              <Flame size={18} color="#f97316" />
-              <span>Trending Now</span>
-            </div>
-            <div className="trending-grid">
-              {trendingHashtags.map((tag) => (
-                <div
-                  key={tag.hashtag}
-                  className="trending-item"
-                  onClick={() => handleTagClick(tag.hashtag)}
-                >
-                  <span className="trending-hashtag">#{tag.hashtag}</span>
-                  <span className="trending-count">{tag.post_count} posts</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Toolbar */}
-        <div className="explore-toolbar">
-          <div className="category-tabs">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                className={`category-tab ${selectedType === cat.id ? 'active' : ''}`}
-                onClick={() => setSelectedType(cat.id as any)}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="view-modes">
-            <button
-              className={`view-mode-btn ${viewMode === 'grid' ? 'active' : ''}`}
-              onClick={() => setViewMode('grid')}
-            >
-              <Grid size={16} />
-            </button>
-            <button
-              className={`view-mode-btn ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => setViewMode('list')}
-            >
-              <List size={16} />
-            </button>
           </div>
         </div>
 
-        {/* Content */}
-        {loading ? (
-          <div className="loading-more">
-            <div className="spinner" />
+        {/* Content Grid */}
+        {loading && contents.length === 0 ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="animate-spin" color="#818cf8" size={40} />
           </div>
         ) : contents.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-emoji">🌌</div>
-            <h3 className="empty-title">No results found</h3>
-            <p className="empty-sub">
-              Try adjusting your search or filter to find what you're looking for.
-            </p>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>🔭</div>
+            <h3 className="empty-title">Tidak ada berita yang ditemukan</h3>
+            <p className="empty-sub">Coba gunakan kata kunci pencarian yang lain.</p>
           </div>
         ) : (
-          <div className={viewMode === 'grid' ? 'content-grid' : 'content-list'}>
-            {contents.map((content, index) => (
-              <ExploreCard
-                key={`${content.source_type}-${content.source_id}-${index}`}
-                content={content}
-                onClick={() => handleContentClick(content)}
-              />
+          <div className="grid-view" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+            {contents.map((item: any, i) => (
+              <a 
+                href={item.url} 
+                target="_blank" 
+                rel="noreferrer" 
+                key={item.id}
+                style={{ textDecoration: 'none' }}
+              >
+                <div style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 20,
+                  overflow: 'hidden',
+                  transition: 'all 0.3s ease',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-4px)'
+                  e.currentTarget.style.borderColor = 'var(--accent)'
+                  e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.2)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.borderColor = 'var(--border-color)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
+                >
+                  <div style={{ height: 200, overflow: 'hidden', position: 'relative' }}>
+                    {item.image_url ? (
+                       <img src={item.image_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                       <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(45deg, #1a1a2e, #16213e)', fontSize: 32 }}>📰</div>
+                    )}
+                    <div style={{ position: 'absolute', top: 12, left: 12, padding: '4px 10px', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      {item.news_site}
+                    </div>
+                  </div>
+                  <div style={{ padding: 16, display: 'flex', flexDirection: 'column', flex: 1 }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1 }}>{item.summary}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                        <Clock size={12} /> {new Date(item.published_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </div>
+                      <ExternalLink size={14} color="var(--text-muted)" />
+                    </div>
+                  </div>
+                </div>
+              </a>
             ))}
           </div>
         )}
 
         {/* Load More */}
-        {hasMore && !loading && !searchQuery && (
+        {hasMore && !loading && (
           <div ref={observerRef} className="loading-more">
             {loadingMore && <div className="spinner" />}
           </div>
         )}
       </div>
 
-      {/* Detail Modal */}
-      {selectedContent && (
-        <ExploreDetailModal
-          content={selectedContent}
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-        />
-      )}
+
     </div>
   )
 }

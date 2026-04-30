@@ -30,21 +30,7 @@ interface APODItem {
   isSharing?: boolean
 }
 
-interface EPICImage {
-  identifier: string
-  caption: string
-  image: string
-  date: string
-}
 
-interface EONETEvent {
-  id: string
-  title: string
-  description: string | null
-  link: string
-  categories: { id: string; title: string }[]
-  geometries: { date: string; type: string; coordinates: [number, number] }[]
-}
 
 /* ══════════════════════════════════════════════
    HELPERS & CONSTANTS
@@ -244,177 +230,6 @@ function TodayHero({ item, onOpen, onTranslate, onShare }: any) {
   )
 }
 
-/* ══════════════════════════════════════════════
-   EPIC SECTION
-══════════════════════════════════════════════ */
-function EPICSection({ images, loading }: { images: EPICImage[], loading: boolean }) {
-  if (loading) {
-    return (
-      <div style={{ marginBottom: 40 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <Globe size={20} color="#10b981" />
-          <h3 style={{ fontSize: 18, fontWeight: 700 }}>🌍 EPIC – Foto Bumi Terbaru</h3>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-          {[1,2,3].map(i => <div key={i} style={{ aspectRatio: '1/1', background: 'var(--bg-elevated)', borderRadius: 16 }} className="skeleton" />)}
-        </div>
-      </div>
-    )
-  }
-  if (!images.length) return null
-  return (
-    <div style={{ marginBottom: 40 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <Globe size={20} color="#10b981" />
-        <h3 style={{ fontSize: 18, fontWeight: 700 }}>🌍 EPIC – Foto Bumi Terbaru</h3>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>diambil 1.5 juta km dari Bumi</span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-        {images.slice(0, 3).map(img => (
-          <a
-            key={img.identifier}
-            href={`https://epic.gsfc.nasa.gov/archive/natural/${img.date.slice(0,4)}/${img.date.slice(5,7)}/${img.date.slice(8,10)}/png/${img.image}.png`}
-            target="_blank"
-            rel="noopener"
-            style={{ textDecoration: 'none' }}
-          >
-            <div style={{
-              background: 'var(--bg-elevated)',
-              borderRadius: 16,
-              overflow: 'hidden',
-              border: '1px solid var(--border)',
-              transition: 'transform .2s'
-            }}>
-              <img
-                src={`https://epic.gsfc.nasa.gov/archive/natural/${img.date.slice(0,4)}/${img.date.slice(5,7)}/${img.date.slice(8,10)}/thumbs/${img.image}.jpg`}
-                alt={img.caption}
-                style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover' }}
-              />
-              <div style={{ padding: 10 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>{img.caption}</p>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDate(img.date)}</p>
-              </div>
-            </div>
-          </a>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ══════════════════════════════════════════════
-   EONET SECTION
-══════════════════════════════════════════════ */
-function EONETSection({ events, loading }: { events: EONETEvent[], loading: boolean }) {
-  if (loading) {
-    return (
-      <div style={{ marginBottom: 40 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <AlertTriangle size={20} color="#f97316" />
-          <h3 style={{ fontSize: 18, fontWeight: 700 }}>⚠️ EONET – Bencana Alam Aktif</h3>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[1,2,3].map(i => (
-            <div key={i} style={{ height: 70, background: 'var(--bg-elevated)', borderRadius: 12 }} className="skeleton" />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (!events?.length) return null
-
-  return (
-    <div style={{ marginBottom: 40 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <AlertTriangle size={20} color="#f97316" />
-        <h3 style={{ fontSize: 18, fontWeight: 700 }}>⚠️ EONET – Bencana Alam Aktif</h3>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-          real-time dari NASA
-        </span>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {events.map(event => {
-          // ✅ SAFE EXTRACTION (ANTI CRASH)
-          const geo = event.geometries?.[0]
-          const lat = geo?.coordinates?.[1]
-          const lon = geo?.coordinates?.[0]
-          const date = geo?.date
-
-          return (
-            <a
-              key={event.id}
-              href={event.link}
-              target="_blank"
-              rel="noopener"
-              style={{ textDecoration: 'none' }}
-            >
-              <div style={{
-                padding: 16,
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 12,
-                transition: 'border-color .2s'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: 'var(--text)' }}>
-                      {event.title}
-                    </h4>
-
-                    <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
-                      {event.categories?.map(cat => (
-                        <span
-                          key={cat.id}
-                          style={{
-                            fontSize: 11,
-                            background: 'rgba(249,115,22,0.1)',
-                            color: '#f97316',
-                            padding: '2px 8px',
-                            borderRadius: 99
-                          }}
-                        >
-                          {cat.title}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 📍 KOORDINAT (SAFE) */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)' }}>
-                    <MapPin size={12} />
-                    <span style={{ fontSize: 12 }}>
-                      {lat !== undefined && lon !== undefined
-                        ? `${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`
-                        : 'Lokasi tidak tersedia'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 🕒 DATE (SAFE) */}
-                {date && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    marginTop: 8,
-                    color: 'var(--text-muted)'
-                  }}>
-                    <Clock size={12} />
-                    <span style={{ fontSize: 11 }}>
-                      {new Date(date).toLocaleString('id-ID')}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </a>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 
 /* ══════════════════════════════════════════════
@@ -435,11 +250,7 @@ export default function NasaPage() {
   const observerRef = useRef<HTMLDivElement>(null)
   const hasReachedEnd = oldestDateRef.current && oldestDateRef.current <= APOD_START_DATE
 
-  const [epicImages, setEpicImages] = useState<EPICImage[]>([])
-  const [loadingEPIC, setLoadingEPIC] = useState(true)
 
-  const [eonetEvents, setEonetEvents] = useState<EONETEvent[]>([])
-  const [loadingEONET, setLoadingEONET] = useState(true)
 
   // Fetch current user
   useEffect(() => {
@@ -483,35 +294,7 @@ export default function NasaPage() {
     }
   }
 
-  const fetchEPIC = async () => {
-    try {
-      const res = await fetch(`https://api.nasa.gov/EPIC/api/natural?api_key=${NASA_KEY}`)
-      const data = await res.json()
-      const images: EPICImage[] = data.slice(0, 6).map((item: any) => ({
-        identifier: item.identifier,
-        caption: item.caption,
-        image: item.image,
-        date: item.date
-      }))
-      setEpicImages(images)
-    } catch (e) {
-      console.warn('EPIC fetch error', e)
-    } finally {
-      setLoadingEPIC(false)
-    }
-  }
 
-  const fetchEONET = async () => {
-    try {
-      const res = await fetch(`https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=5`)
-      const data = await res.json()
-      setEonetEvents(data.events)
-    } catch (e) {
-      console.warn('EONET fetch error', e)
-    } finally {
-      setLoadingEONET(false)
-    }
-  }
 
   const loadAPODData = useCallback(async (endDate: string, count: number) => {
     const start = new Date(endDate)
@@ -567,8 +350,6 @@ export default function NasaPage() {
 
   useEffect(() => {
     loadInitialAPOD()
-    fetchEPIC()
-    fetchEONET()
   }, [])
 
   useEffect(() => {
@@ -591,10 +372,10 @@ export default function NasaPage() {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 99, background: 'rgba(129,140,248,0.08)', border: '1px solid rgba(129,140,248,0.15)', marginBottom: 16 }}>
             <Satellite size={12} color="#818cf8" />
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase' }}>NASA · APOD · EPIC · EONET</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase' }}>NASA · APOD</span>
           </div>
           <h1 style={{ fontSize: 'clamp(24px, 4vw, 40px)', fontWeight: 800 }}>Astronomy Picture of the Day</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Arsip lengkap NASA sejak 1995 + data real-time Bumi & bencana</p>
+          <p style={{ color: 'var(--text-muted)' }}>Arsip lengkap NASA sejak 1995</p>
         </div>
 
         {loadingAPOD ? (
@@ -603,8 +384,7 @@ export default function NasaPage() {
           <TodayHero item={items[0]} onOpen={() => setLightboxIdx(0)} onTranslate={() => handleTranslate(0)} onShare={() => handleShare(0)} />
         )}
 
-        <EPICSection images={epicImages} loading={loadingEPIC} />
-        <EONETSection events={eonetEvents} loading={loadingEONET} />
+
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>

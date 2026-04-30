@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useEffect } from "react"
 import { useAuth } from "@/app/contexts/AuthContext"
 import { useTheme } from "@/app/contexts/ThemeContext"
@@ -13,29 +13,16 @@ export default function ClientLayout({
 }) {
   const { user, loading } = useAuth()
   const { theme } = useTheme()
-  const router = useRouter()
+
   const pathname = usePathname()
 
   const isLandingPage = pathname === '/'
   const isAuthPage = pathname === '/login' || pathname === '/register' || pathname === '/forgot-password'
   const isPublicPath = isLandingPage || isAuthPage || pathname?.startsWith('/auth/')
 
-  useEffect(() => {
-    if (loading) return
 
-    // User sudah login tapi masih di landing page atau auth page → langsung ke feed
-    if (user && (isLandingPage || isAuthPage)) {
-      router.replace('/feed')
-      return
-    }
 
-    // User belum login tapi akses protected route → balik ke landing
-    if (!user && !isPublicPath) {
-      router.replace('/')
-    }
-  }, [user, loading, pathname])
-
-  if (loading) {
+  if (loading && !isPublicPath) {
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
