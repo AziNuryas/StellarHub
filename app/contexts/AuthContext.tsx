@@ -78,6 +78,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const checkAuth = useCallback(async () => {
+    let isSettled = false;
+    const fallbackTimer = setTimeout(() => {
+      if (!isSettled) {
+        setLoading(false);
+        isSettled = true;
+      }
+    }, 5000); // 5 seconds max wait
+
     try {
       const { data: { session }, error } = await supabase.auth.getSession()
       const verifiedUser = session?.user
@@ -94,7 +102,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null)
       }
     } finally {
-      setLoading(false)
+      if (!isSettled) {
+        setLoading(false)
+        isSettled = true;
+        clearTimeout(fallbackTimer);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase])
