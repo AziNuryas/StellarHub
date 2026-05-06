@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/app/contexts/AuthContext';
 import {
   Heart, MessageCircle, Share2, Bookmark, Send,
   Image as ImageIcon, X, TrendingUp, Zap, Clock,
@@ -303,7 +304,7 @@ function PostContent({text}:{text:string|null}) {
   
   return (
     <div>
-      <p style={{margin:0,color:'var(--txt2)',fontSize:15,lineHeight:1.82}}>
+      <p style={{margin:0,color:'var(--txt2)',fontSize:15,lineHeight:1.82,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
         {show.split(/(\s+)/).map((w,i)=>{
           if(w.startsWith('#')) return <span key={i} className="tag-lnk">{w}</span>;
           if(w.startsWith('@')) return <span key={i} className="at-lnk">{w}</span>;
@@ -373,9 +374,9 @@ function PostCard({post,me,onLike,onComment,onDelete,onBookmark,bookmarked}:{
   const isNASA=post.content?.includes('🌌')&&post.content?.includes('Deskripsi NASA:');
   const uname=post.profiles?.username||'Anonymous';
 
-  const allImages:string[]=post.post_images&&post.post_images.length>0
+  const allImages:string[]=(post.post_images&&post.post_images.length>0
     ?[...post.post_images].sort((a,b)=>a.order_index-b.order_index).map(i=>i.url)
-    :post.image_url?[post.image_url]:[];
+    :post.image_url?[post.image_url]:[]).filter(Boolean);
 
   const shownCmts=post.comments?.slice(-(cmtPg*5))||[];
   const moreCmts=(post.comments?.length||0)>cmtPg*5;
@@ -520,7 +521,7 @@ function PostCard({post,me,onLike,onComment,onDelete,onBookmark,bookmarked}:{
           ))}
           {me?(
             <div className="cmt-ir">
-              <Avatar name={me?.user_metadata?.username||me?.email||'A'} size={34}/>
+              <Avatar name={me?.username||me?.email||'A'} size={34}/>
               <div className="cmt-wrap">
                 <input ref={inputRef} value={cmtText} onChange={e=>setCmtText(e.target.value)}
                   onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendCmt();}}}
@@ -577,7 +578,7 @@ function ComposeBox({user,onPost}:{user:any;onPost:(c:string,f:File[],u:string[]
     setBusy(true);await onPost(content.trim(),files,imgUrl?[imgUrl]:[]);
     setContent('');clr();setBusy(false);setFocused(false);
   };
-  const uname=user?.user_metadata?.username||user?.email?.split('@')[0]||'You';
+  const uname=user?.username||user?.email?.split('@')[0]||'You';
   const can=!!user&&!busy&&(!!content.trim()||!!files.length||!!imgUrl);
 
   return (
@@ -649,7 +650,7 @@ function Sidebar({user}:{user:any}) {
   const [suggested, setSuggested] = useState<any[]>([]);
 
   useEffect(() => {
-    supabase.rpc('get_trending_hashtags', { limit_count: 5 }).then(({data}) => {
+    supabase.rpc('get_trending_hashtags', { limit_count: 5 }).then(({data}: {data: any}) => {
       if(data) setHashtags(data);
     });
     
@@ -657,7 +658,7 @@ function Sidebar({user}:{user:any}) {
       .select('username, avatar_url, bio')
       .neq('id', user?.id || '00000000-0000-0000-0000-000000000000')
       .limit(4)
-      .then(({data}) => {
+      .then(({data}: {data: any}) => {
         if(data) setSuggested(data);
       });
   }, [user]);
@@ -708,9 +709,9 @@ function Sidebar({user}:{user:any}) {
       </div>
       {user&&(
         <div className="scard" style={{display:'flex',alignItems:'center',gap:12}}>
-          <Avatar name={user?.user_metadata?.username||user?.email||'U'} size={40}/>
+          <Avatar name={user?.username||user?.email||'U'} size={40}/>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13,fontWeight:700,color:'var(--txt)',fontFamily:"'Archivo Black',sans-serif",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user?.user_metadata?.username||user?.email?.split('@')[0]}</div>
+            <div style={{fontSize:13,fontWeight:700,color:'var(--txt)',fontFamily:"'Archivo Black',sans-serif",overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user?.username||user?.email?.split('@')[0]}</div>
             <a href="/profile" style={{fontSize:11,color:'var(--accent)',textDecoration:'none',marginTop:1,display:'block'}}>View profile →</a>
           </div>
         </div>
@@ -742,6 +743,7 @@ html{scroll-behavior:smooth}body{overflow-x:hidden}
 *::-webkit-scrollbar{width:3px;height:3px}*::-webkit-scrollbar-thumb{background:rgba(129,140,248,.15);border-radius:99px}
 /* fonts loaded globally via next/font in layout.tsx */
 :root{--bg:#060810;--card:rgba(11,14,26,.9);--accent:#818cf8;--txt:rgba(226,232,240,.96);--txt2:rgba(203,213,225,.75);--muted:rgba(100,116,139,.5);--border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.04)}
+[data-theme="light"]{--bg:#f8fafc;--card:#ffffff;--accent:#6d28d9;--txt:#0f172a;--txt2:#334155;--muted:#64748b;--border:rgba(15,23,42,.08);--border2:rgba(15,23,42,.04)}
 *,*::before,*::after{box-sizing:border-box;margin:0}
 
 .feed-page{min-height:100svh;padding:80px 16px 90px;font-family:'DM Sans',sans-serif;color:var(--txt)}
@@ -976,48 +978,52 @@ html{scroll-behavior:smooth}body{overflow-x:hidden}
 ════════════════════════════════════════════ */
 export default function FeedPage() {
   const [supabase] = useState(() => createClient());
+  const { user, loading: authLoading } = useAuth();
   const [posts,setPosts]=useState<Post[]>([]);
   const [loading,setLoading]=useState(true);
-  const [user,setUser]=useState<any>(null);
   const [tab,setTab]=useState('latest');
   const [scrollTop,setScrollTop]=useState(false);
   const [newCount,setNewCount]=useState(0);
   const [bookmarks,setBookmarks]=useState<Set<string>>(new Set());
 
   useEffect(()=>{
-    fetchUser();fetchPosts();
     const fn=()=>setScrollTop(window.scrollY>500);
     window.addEventListener('scroll',fn,{passive:true});
     return()=>window.removeEventListener('scroll',fn);
   },[]);
+
   useEffect(()=>{if(!loading){const t=setTimeout(()=>setNewCount(2),20000);return()=>clearTimeout(t);}},[loading]);
 
-  const fetchUser=async()=>{
-    try {
-      const{data:{user}}=await supabase.auth.getUser();setUser(user);
-      if(user){const{data}=await supabase.from('bookmarks').select('post_id').abortSignal(AbortSignal.timeout(8000)).eq('user_id',user.id).not('post_id','is',null);if(data)setBookmarks(new Set(data.map((b:any)=>b.post_id)));}
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') console.error("fetchUser error:", e);
+  useEffect(() => {
+    if (authLoading) return; // Wait for AuthContext to settle before fetching
+
+    fetchPosts();
+    if (user) {
+      supabase.from('bookmarks').select('post_id').eq('user_id',user.id).not('post_id','is',null)
+        .then(({data}: any) => { if(data) setBookmarks(new Set(data.map((b:any)=>b.post_id))) });
     }
-  };
+  }, [user?.id, authLoading]); // Only re-fetch if user ID changes or auth settles
+
   const [debugError, setDebugError] = useState<any>(null);
   const fetchPosts=async()=>{
     try{
-      console.log("STARTING FETCH POSTS");
-      const start = Date.now();
-      const{data,error}=await supabase.from('posts')
+      let res = await supabase.from('posts')
         .select(`*,profiles(username,avatar_url),likes(id,user_id),comments(id,content,created_at,user_id,post_id,profiles(username,avatar_url)),post_images(id,url,order_index)`)
-        .abortSignal(AbortSignal.timeout(8000))
         .order('created_at',{ascending:false}).limit(15);
-      console.log(`FETCH POSTS FINISHED in ${Date.now() - start}ms`, data, error);
+        
+      if (res.error && res.error.message?.includes('post_images')) {
+        console.warn("post_images relation missing, falling back to basic query");
+        res = await supabase.from('posts')
+          .select(`*,profiles(username,avatar_url),likes(id,user_id),comments(id,content,created_at,user_id,post_id,profiles(username,avatar_url))`)
+          .order('created_at',{ascending:false}).limit(15);
+      }
+      
+      const { data, error } = res;
       if(error) { setDebugError(error); throw error; }
       setPosts(data||[]);
     }catch(e: any){
-      if (e?.name !== 'AbortError') {
-        console.log(`FETCH POSTS FAILED in ${Date.now() - Date.now()}ms`, e);
-        console.error("fetchPosts error:", e);
-        toast.error('Failed to load posts');
-      }
+      setDebugError({ message: e.message || 'Fetch failed', details: e.toString() });
+      toast.error('Failed to load posts');
     } finally {
       setLoading(false);
     }
@@ -1053,7 +1059,7 @@ export default function FeedPage() {
 
   const handleComment=async(postId:string,text:string)=>{
     if(!user){toast.error('Sign in to comment');return;}
-    const opt:Comment={id:'opt-'+Date.now(),content:text,created_at:new Date().toISOString(),user_id:user.id,post_id:postId,profiles:{username:user.user_metadata?.username||user.email?.split('@')[0]||'You',avatar_url:null}};
+    const opt:Comment={id:'opt-'+Date.now(),content:text,created_at:new Date().toISOString(),user_id:user.id,post_id:postId,profiles:{username:user.username||user.email?.split('@')[0]||'You',avatar_url:null}};
     setPosts(prev=>prev.map(p=>p.id!==postId?p:{...p,comments:[...(p.comments||[]),opt]}));
     try{const{error}=await supabase.from('comments').insert({post_id:postId,user_id:user.id,content:text});if(error)throw error;}catch{toast.error('Failed');fetchPosts();}
   };
@@ -1075,7 +1081,17 @@ export default function FeedPage() {
   const visible=tab==='trending'?[...posts].sort((a,b)=>((b.likes?.length??0)+(b.comments?.length??0))-((a.likes?.length??0)+(a.comments?.length??0))):posts;
 
   if (debugError) {
-    return <div style={{marginTop:100, color:'red'}}><pre>{JSON.stringify(debugError, null, 2)}</pre></div>
+    return (
+      <div style={{marginTop:100, padding: 20, background: 'rgba(255,0,0,0.1)', color: '#ff4444', borderRadius: 12, margin: '100px 20px 20px'}}>
+        <h2 style={{fontSize: 20, fontWeight: 'bold', marginBottom: 12}}>🚨 Error Fetching Feed</h2>
+        <p><strong>Message:</strong> {debugError.message || 'Unknown Error'}</p>
+        <p><strong>Hint:</strong> {debugError.hint || 'None'}</p>
+        <p><strong>Details:</strong> {debugError.details || 'None'}</p>
+        <pre style={{marginTop: 16, background: '#000', padding: 12, borderRadius: 8, overflowX: 'auto'}}>
+          {JSON.stringify(debugError, null, 2)}
+        </pre>
+      </div>
+    )
   }
 
   return (
@@ -1098,10 +1114,19 @@ export default function FeedPage() {
               </div>
             ))}</>
           ):visible.length===0?(
-            <div className="empty">
+            <div className="empty" style={{background:'rgba(129,140,248,0.05)',border:'1px dashed rgba(129,140,248,0.3)',padding:40,borderRadius:24,textAlign:'center'}}>
               <span style={{fontSize:50,marginBottom:16,display:'block',animation:'float 3s ease-in-out infinite'}}>🌌</span>
-              <h3 style={{fontSize:'1.35rem',fontWeight:700,color:'var(--txt)',fontFamily:"'Archivo Black',sans-serif",marginBottom:8}}>The cosmos awaits</h3>
-              <p style={{fontSize:14,color:'var(--muted)',lineHeight:1.65}}>Be the first to share a discovery!</p>
+              <h3 style={{fontSize:'1.35rem',fontWeight:700,color:'var(--txt)',fontFamily:"'Archivo Black',sans-serif",marginBottom:8}}>Feed Kosong (0 Posts)</h3>
+              <p style={{fontSize:14,color:'var(--muted)',lineHeight:1.65,marginBottom:20}}>
+                Aplikasi berhasil terhubung ke database, tapi Supabase mengembalikan 0 data.
+              </p>
+              <div style={{background:'rgba(255,100,100,0.1)',padding:16,borderRadius:12,textAlign:'left',display:'inline-block'}}>
+                <strong style={{color:'#ff6b6b',display:'block',marginBottom:8}}>🚨 Cek 2 Hal Ini di Supabase:</strong>
+                <ol style={{color:'#f8b4b4',fontSize:13,margin:0,paddingLeft:20,lineHeight:1.6}}>
+                  <li>Apakah tabel <b>posts</b> kamu memang masih kosong? (Coba buat post baru)</li>
+                  <li>Apakah <b>Row Level Security (RLS)</b> di tabel posts memblokir akses baca? (Coba Disable RLS sementara di Supabase)</li>
+                </ol>
+              </div>
             </div>
           ):(
             visible.map(p=>(

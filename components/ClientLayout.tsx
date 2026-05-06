@@ -39,12 +39,10 @@ export default function ClientLayout({
     )
   }
 
-  const showNav = !isAuthPage && !pathname?.startsWith('/auth/')
-
   return (
     <>
-      {showNav && <Navbar />}
-      <main style={{ paddingTop: showNav ? 64 : 0 }}>
+      <Navbar />
+      <main style={{ paddingTop: 64 }}>
         {children}
       </main>
     </>

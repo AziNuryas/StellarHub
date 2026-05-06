@@ -1,32 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import {
-  Rocket, Mail, Lock, Eye, EyeOff,
-  Github, Loader2, ArrowRight, Star,
+  Mail, Lock, Eye, EyeOff,
+  Github, Loader2, ArrowRight, Star, Satellite
 } from 'lucide-react';
-
-function seededRand(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    return (s >>> 0) / 0xffffffff;
-  };
-}
-const rand = seededRand(77);
-const STARS = Array.from({ length: 80 }, (_, i) => ({
-  id: i, x: rand() * 100, y: rand() * 100,
-  size: rand() * 2 + 0.5, delay: rand() * 8, dur: rand() * 5 + 4,
-  opacity: rand() * 0.6 + 0.15,
-}));
-const METEORS = Array.from({ length: 4 }, (_, i) => ({
-  id: i, x: rand() * 70 + 10, y: rand() * 40,
-  delay: rand() * 12 + i * 4, dur: rand() * 0.8 + 0.6, length: rand() * 100 + 70,
-}));
+import { gsap } from 'gsap';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,15 +22,72 @@ export default function LoginPage() {
   const [checking, setChecking] = useState(true);
   const [existingSession, setExistingSession] = useState<any>(null);
 
+  const gsapLoaded = useRef(false);
+  const cursorSatelliteRef = useRef<HTMLDivElement>(null);
+  const freeSatelliteRef = useRef<HTMLDivElement>(null);
+  const mouseRef = useRef({ x: 0, y: 0 });
+  const smoothedMouseRef = useRef({ x: 0, y: 0 });
+
   useEffect(() => {
     setMounted(true);
-    // ✅ FIX: Cek session TAPI JANGAN REDIRECT!
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setExistingSession(session); // Simpen session, jangan redirect
-      }
+      if (session) setExistingSession(session);
       setChecking(false);
     });
+  }, []);
+
+  useEffect(() => {
+    if (gsapLoaded.current) return;
+    gsapLoaded.current = true;
+
+    mouseRef.current.x = window.innerWidth / 2;
+    mouseRef.current.y = window.innerHeight / 2;
+    smoothedMouseRef.current.x = window.innerWidth / 2;
+    smoothedMouseRef.current.y = window.innerHeight / 2;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseRef.current.x = e.clientX;
+      mouseRef.current.y = e.clientY;
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+
+    // Satellite 1: Cursor Orbit
+    const cursorSat = cursorSatelliteRef.current;
+    if (cursorSat) {
+      let orbitAngle = 0;
+      const orbitRadius = 120;
+      const animateCursorOrbit = () => {
+        orbitAngle += 0.02;
+        smoothedMouseRef.current.x += (mouseRef.current.x - smoothedMouseRef.current.x) * 0.03;
+        smoothedMouseRef.current.y += (mouseRef.current.y - smoothedMouseRef.current.y) * 0.03;
+        const targetX = smoothedMouseRef.current.x + Math.cos(orbitAngle) * orbitRadius;
+        const targetY = smoothedMouseRef.current.y + Math.sin(orbitAngle) * orbitRadius;
+        const tangentAngle = (orbitAngle * (180 / Math.PI)) + 135;
+        gsap.set(cursorSat, { x: targetX, y: targetY, rotation: tangentAngle });
+        requestAnimationFrame(animateCursorOrbit);
+      };
+      requestAnimationFrame(animateCursorOrbit);
+    }
+
+    // Satellite 2: Free Floating
+    const freeSat = freeSatelliteRef.current;
+    if (freeSat) {
+      gsap.set(freeSat, { x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight });
+      const animateFreeSat = () => {
+        if (!freeSat) return;
+        const newX = Math.random() * window.innerWidth;
+        const newY = Math.random() * window.innerHeight;
+        const currentX = gsap.getProperty(freeSat, "x") as number;
+        const currentY = gsap.getProperty(freeSat, "y") as number;
+        const angle = Math.atan2(newY - currentY, newX - currentX) * (180 / Math.PI);
+        const dist = Math.sqrt(Math.pow(newX - currentX, 2) + Math.pow(newY - currentY, 2));
+        gsap.to(freeSat, { rotation: angle + 45, duration: 1.5, ease: 'power2.inOut' });
+        gsap.to(freeSat, { x: newX, y: newY, duration: dist / 40, ease: 'sine.inOut', onComplete: animateFreeSat });
+      };
+      animateFreeSat();
+    }
+
+    return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
   // ✅ KALAU UDAH LOGIN, TAMPILKAN PILIHAN
@@ -240,41 +280,21 @@ export default function LoginPage() {
         /* fonts loaded globally via next/font in layout.tsx */
         *,*::before,*::after{box-sizing:border-box;}
         .sh-root{min-height:100svh;background:#050810;color:#f0f0ff;font-family:'DM Sans',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px 20px;position:relative;overflow:hidden;}
-        .lg-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}
-        .lg-blob{position:absolute;border-radius:50%;filter:blur(80px);}
-        .lg-blob-1{width:600px;height:600px;top:-200px;left:-150px;background:radial-gradient(circle,rgba(124,58,237,.18) 0%,transparent 70%);animation:blobP 13s ease-in-out infinite;}
-        .lg-blob-2{width:500px;height:500px;bottom:-150px;right:-120px;background:radial-gradient(circle,rgba(14,165,233,.13) 0%,transparent 70%);animation:blobP 16s ease-in-out 6s infinite;}
-        .lg-blob-3{width:280px;height:280px;top:40%;left:60%;background:radial-gradient(circle,rgba(244,114,182,.07) 0%,transparent 70%);animation:blobP 19s ease-in-out 3s infinite;}
-        @keyframes blobP{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
-        .lg-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.015) 1px,transparent 1px);background-size:80px 80px;mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,black 0%,transparent 100%);-webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,black 0%,transparent 100%);}
-        .lg-vignette{position:absolute;inset:0;background:radial-gradient(ellipse 100% 100% at 50% 50%,transparent 35%,rgba(5,8,16,.7) 100%);}
-        .lg-star{position:absolute;border-radius:50%;background:#fff;animation:twinkle var(--tw-dur) ease-in-out var(--tw-delay) infinite;}
-        @keyframes twinkle{0%,100%{opacity:.04;transform:scale(1)}50%{opacity:var(--peak);transform:scale(1.8)}}
-        .lg-meteor{position:absolute;height:1.5px;border-radius:100px;background:linear-gradient(90deg,rgba(255,255,255,.9),rgba(196,181,253,.5),transparent);transform:rotate(-30deg);opacity:0;animation:shoot var(--m-dur) ease-out var(--m-delay) infinite;}
-        @keyframes shoot{0%{opacity:0;transform:rotate(-30deg) translateX(0)}5%{opacity:1}80%{opacity:.4}100%{opacity:0;transform:rotate(-30deg) translateX(var(--m-len))}}
-
+        
         .lg-wrap{position:relative;z-index:10;width:100%;max-width:460px;animation:fadeUp .85s cubic-bezier(.16,1,.3,1) .08s both;}
         @keyframes fadeUp{from{opacity:0;transform:translateY(32px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 
         /* ── HEADER ── */
         .lg-header{text-align:center;margin-bottom:32px;}
-        .lg-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:100px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:24px;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:rgba(200,210,240,.65);font-family:'Syne',sans-serif;}
-        .lg-badge-dot{width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981;animation:dotP 2s ease-in-out infinite;flex-shrink:0;}
-        @keyframes dotP{0%,100%{box-shadow:0 0 8px #10b981}50%{box-shadow:0 0 16px #10b981,0 0 24px rgba(16,185,129,.4)}}
-
-        /* ── LOGO ── */
-        .lg-logo-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center;width:84px;height:84px;margin-bottom:22px;}
-        .lg-logo-glow{position:absolute;inset:-10px;border-radius:28px;background:linear-gradient(135deg,rgba(124,58,237,.45),rgba(14,165,233,.35));filter:blur(18px);animation:glowP 3s ease-in-out infinite;z-index:0;}
-        @keyframes glowP{0%,100%{opacity:.55}50%{opacity:1}}
-        .lg-logo-box{position:relative;z-index:1;width:72px;height:72px;border-radius:22px;background:linear-gradient(135deg,#7c3aed 0%,#4f46e5 50%,#0ea5e9 100%);display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.18);box-shadow:0 0 0 1px rgba(124,58,237,.3),0 8px 32px rgba(124,58,237,.35),inset 0 1px 0 rgba(255,255,255,.2);}
-
         .lg-title{font-family:'DM Serif Display',Georgia,serif;font-size:2.4rem;line-height:1.05;letter-spacing:-.025em;margin:0 0 10px;}
         .lg-sub{font-size:.9rem;font-weight:300;color:rgba(180,185,220,.6);line-height:1.6;margin:0;}
         .tg{background:linear-gradient(110deg,#c4b5fd 0%,#818cf8 40%,#38bdf8 70%,#34d399 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200% auto;animation:gradMove 6s ease infinite;}
         @keyframes gradMove{0%,100%{background-position:0% center}50%{background-position:100% center}}
 
         /* ── CARD ── */
-        .lg-card{background:rgba(255,255,255,.042);border:1px solid rgba(255,255,255,.09);border-radius:28px;backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);padding:36px;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 40px 80px rgba(0,0,0,.45),0 0 80px rgba(124,58,237,.05);}
+        .lg-card{position:relative;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:32px;backdrop-filter:blur(30px) saturate(200%);-webkit-backdrop-filter:blur(30px) saturate(200%);padding:40px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 40px 100px rgba(0,0,0,.5),0 0 80px rgba(124,58,237,.05);overflow:hidden;}
+        .lg-card::before{content:'';position:absolute;top:0;left:-100%;width:50%;height:100%;background:linear-gradient(to right,transparent,rgba(255,255,255,.02),transparent);transform:skewX(-20deg);transition:all .8s;}
+        .lg-card:hover::before{left:150%;}
 
         /* ── OAUTH ── */
         .oauth-row{display:flex;gap:10px;margin-bottom:24px;}
@@ -324,42 +344,25 @@ export default function LoginPage() {
         @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
       `}</style>
 
-      {/* BG */}
-      <div className="lg-bg">
-        <div className="lg-blob lg-blob-1"/><div className="lg-blob lg-blob-2"/><div className="lg-blob lg-blob-3"/>
-        <div className="lg-grid"/>
-        {mounted && (
-          <>
-            {STARS.map(s => (
-              <span key={s.id} className="lg-star" style={{
-                left:`${s.x}%`,top:`${s.y}%`,width:s.size,height:s.size,
-                '--tw-dur':`${s.dur}s`,'--tw-delay':`${s.delay}s`,'--peak':s.opacity,
-              } as React.CSSProperties}/>
-            ))}
-            {METEORS.map(m => (
-              <span key={m.id} className="lg-meteor" style={{
-                left:`${m.x}%`,top:`${m.y}%`,width:m.length,
-                '--m-dur':`${m.dur}s`,'--m-delay':`${m.delay}s`,'--m-len':`${m.length*2.5}px`,
-              } as React.CSSProperties}/>
-            ))}
-          </>
-        )}
-        <div className="lg-vignette"/>
+      {/* ── SATELLITE 1: Cursor Orbit ── */}
+      <div ref={cursorSatelliteRef} style={{ position: 'fixed', top: -24, left: -24, zIndex: 0, pointerEvents: 'none', width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'absolute', width: '150%', height: '150%', background: '#818cf8', borderRadius: '50%', filter: 'blur(20px)', opacity: 0.6 }}></div>
+        <Satellite size={32} color="#ffffff" style={{ position: 'relative', zIndex: 1, filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.8))' }} />
+      </div>
+
+      {/* ── SATELLITE 2: Free Floating ── */}
+      <div ref={freeSatelliteRef} style={{ position: 'fixed', top: -32, left: -32, zIndex: 0, pointerEvents: 'none', width: 64, height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'absolute', width: '150%', height: '150%', background: '#f59e0b', borderRadius: '50%', filter: 'blur(25px)', opacity: 0.4 }}></div>
+        <div style={{ transform: 'perspective(600px) rotateX(45deg) rotateY(-15deg)', filter: 'drop-shadow(10px 20px 15px rgba(0,0,0,0.6))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        </div>
       </div>
 
       {/* CONTENT */}
       <div className="lg-wrap">
         <div className="lg-header">
-          <div className="lg-badge">
-            <span className="lg-badge-dot"/>
-            StellarHub · Space Community
-          </div>
-          <div className="lg-logo-wrap">
-            <div className="lg-logo-glow"/>
-            <div className="lg-logo-box">
-              <Rocket style={{width:32,height:32,color:'#fff'}}/>
-            </div>
-          </div>
           <h1 className="lg-title">Welcome<br/><span className="tg">Back, Explorer</span></h1>
           <p className="lg-sub">Your cosmos awaits. Sign in to continue.</p>
         </div>

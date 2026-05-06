@@ -6,38 +6,32 @@ declare global {
   }
 }
 
+let browserClient: any = null;
+
 export function createClient() {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    console.error("Supabase environment variables are missing. Please check your Vercel settings or .env.local file.");
-    // Return a dummy client to prevent crashing the entire app immediately,
-    // though auth/db operations will fail.
-    return {
-      auth: {
-        getSession: async () => ({ data: { session: null }, error: null }),
-        getUser: async () => ({ data: { user: null }, error: null }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-        signInWithPassword: async () => ({ error: new Error('Missing Supabase Config') }),
-        signUp: async () => ({ error: new Error('Missing Supabase Config') }),
-        signOut: async () => {},
-      },
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            single: async () => ({ data: null, error: new Error('Missing config') })
-          })
-        }),
-        insert: () => ({
-          select: () => ({
-            single: async () => ({ data: null, error: new Error('Missing config') })
-          })
-        })
-      }),
-      storage: {
-        from: () => ({})
-      },
-      rpc: async () => ({ data: null, error: new Error('Missing config') })
-    } as any;
+    console.error("CRITICAL ERROR: Supabase environment variables are missing on Vercel.");
+    return new Proxy({}, {
+      get: function(target, prop) {
+        if (prop === 'auth') return new Proxy({}, { get: () => () => ({ data: { session: null, user: null }, error: new Error('MISSING_ENV_VARS') }) });
+        if (prop === 'from') return () => new Proxy({}, { get: () => () => new Proxy({}, { get: () => () => ({ data: null, error: new Error('MISSING_ENV_VARS') }) }) });
+        return () => ({ data: null, error: new Error('MISSING_ENV_VARS') });
+      }
+    }) as any;
   }
+  
+  // Return singleton if in browser to prevent navigator.locks deadlocks
+  if (typeof window !== 'undefined') {
+    if (!browserClient) {
+      browserClient = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+    }
+    return browserClient;
+  }
+
+  // Always return fresh client on server
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY

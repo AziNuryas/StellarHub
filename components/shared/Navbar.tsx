@@ -12,6 +12,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { Logo } from '@/components/shared/Logo'
 
 /* ─────────────────────────────────────────────────────
    NOTIFICATION TYPE
@@ -80,15 +81,9 @@ function LandingNav({ user }: { user: any }) {
 
           <div className="ln-bar">
             <Link href="/" className="ln-logo">
-              <div className="ln-logo__icon-wrap">
-                <div className="ln-logo__glow" />
-                <div className="ln-logo__box">
-                  <Rocket size={16} color="#fff" />
-                </div>
-              </div>
+              <Logo size={28} glow />
               <div className="ln-logo__text">
                 <span className="ln-logo__name">StellarHub</span>
-                <span className="ln-logo__sub">Space Platform</span>
               </div>
             </Link>
 
@@ -182,15 +177,9 @@ function AuthNav() {
       <nav className="sh-nav sh-nav--auth">
         <div className="sh-nav__bar">
           <Link href="/" className="ln-logo">
-            <div className="ln-logo__icon-wrap" style={{ width: 34, height: 34 }}>
-              <div className="ln-logo__glow" />
-              <div className="ln-logo__box">
-                <Rocket size={14} color="#fff" />
-              </div>
-            </div>
+            <Logo size={28} glow />
             <div className="ln-logo__text">
               <span className="ln-logo__name">StellarHub</span>
-              <span className="ln-logo__sub">Space Platform</span>
             </div>
           </Link>
           <div className="nav-auth-status">
@@ -228,7 +217,7 @@ function AppNav() {
   useEffect(() => {
     if (!user?.id) return
     supabase.from('profiles').select('avatar_url').eq('id', user.id).single()
-      .then(({ data }) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url) })
+      .then(({ data }: any) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url) })
   }, [user?.id])
 
   const fetchNotifs = useCallback(async (uid: string) => {
@@ -240,7 +229,7 @@ function AppNav() {
       .order('created_at', { ascending: false })
       .limit(50)
     if (data) {
-      setNotifications(data.map(item => ({
+      setNotifications(data.map((item: any) => ({
         ...item,
         actor: Array.isArray(item.actor) ? (item.actor[0] ?? null) : (item.actor ?? null),
       })) as NotifItem[])
@@ -336,15 +325,9 @@ function AppNav() {
         <div className="sh-nav__bar">
 
           <Link href="/" className="ln-logo">
-            <div className="ln-logo__icon-wrap" style={{ width: 34, height: 34 }}>
-              <div className="ln-logo__glow" />
-              <div className="ln-logo__box">
-                <Rocket size={14} color="#fff" />
-              </div>
-            </div>
+            <Logo size={28} glow />
             <div className="ln-logo__text">
               <span className="ln-logo__name">StellarHub</span>
-              <span className="ln-logo__sub">Space Platform</span>
             </div>
           </Link>
 
@@ -533,18 +516,18 @@ function NavStyles() {
       /* fonts loaded globally via next/font in layout.tsx */
 
       :root {
-        --nav-bg:         rgba(5,8,16,0.82);
-        --nav-border:     rgba(255,255,255,0.08);
-        --nav-text:       rgba(180,185,220,0.7);
-        --nav-text-hover: rgba(240,240,255,0.95);
-        --nav-accent:     #6366f1;
+        --nav-bg:         rgba(9, 9, 11, 0.85);
+        --nav-border:     rgba(255, 255, 255, 0.1);
+        --nav-text:       #a1a1aa;
+        --nav-text-hover: #fafafa;
+        --nav-accent:     #ffffff;
       }
       [data-theme="light"] {
-        --nav-bg:         rgba(255,255,255,0.88);
-        --nav-border:     rgba(0,0,0,0.07);
-        --nav-text:       #334155;
-        --nav-text-hover: #0f172a;
-        --nav-accent:     #7c3aed;
+        --nav-bg:         rgba(255, 255, 255, 0.85);
+        --nav-border:     rgba(0, 0, 0, 0.1);
+        --nav-text:       #52525b;
+        --nav-text-hover: #09090b;
+        --nav-accent:     #000000;
       }
 
       /* ════════════════════════════════
@@ -628,9 +611,8 @@ function NavStyles() {
       .ln-logo:hover .ln-logo__box { transform:scale(1.08) rotate(-4deg); }
       .ln-logo__text { display:flex; flex-direction:column; line-height:1; }
       .ln-logo__name {
-        font-family:'Syne',sans-serif; font-weight:800; font-size:1.05rem; letter-spacing:-.02em;
-        background:linear-gradient(120deg,#c4b5fd,#818cf8,#38bdf8);
-        -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+        font-family:system-ui, sans-serif; font-weight:600; font-size:1.05rem; letter-spacing:-.02em;
+        color: var(--nav-text-hover);
       }
       .ln-logo__sub { font-size:9px; color:rgba(160,165,200,.38); text-transform:uppercase; letter-spacing:.18em; margin-top:3px; font-weight:500; }
 
@@ -669,20 +651,16 @@ function NavStyles() {
       /* CTA */
       .ln-cta {
         display:inline-flex; align-items:center; gap:7px;
-        padding:9px 20px; border-radius:14px; font-size:13px; font-weight:700;
-        color:#fff !important; -webkit-text-fill-color:#fff;
+        padding:9px 20px; border-radius:8px; font-size:13px; font-weight:600;
+        color:#000 !important; -webkit-text-fill-color:#000;
         text-decoration:none; border:none; cursor:pointer;
-        font-family:'Syne',sans-serif; letter-spacing:-.01em;
+        font-family:system-ui,sans-serif; letter-spacing:-.01em;
         white-space:nowrap; position:relative; overflow:hidden;
-        background:linear-gradient(135deg,#5558f0 0%,#7b7ef4 45%,#0ea5e9 100%);
-        box-shadow:0 0 0 1px rgba(129,140,248,.4),0 2px 12px rgba(99,102,241,.5),0 0 36px rgba(99,102,241,.22),inset 0 1px 0 rgba(255,255,255,.22);
+        background:var(--nav-accent);
         transition:transform .2s cubic-bezier(.175,.885,.32,1.4), box-shadow .3s ease;
       }
-      .ln-cta::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,.2) 0%,transparent 55%); border-radius:inherit; }
-      .ln-cta::after { content:''; position:absolute; top:0; left:-100%; width:55%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent); transition:left .55s ease; pointer-events:none; }
-      .ln-cta:hover::after { left:160%; }
-      .ln-cta:hover { transform:translateY(-2px) scale(1.05); box-shadow:0 0 0 1px rgba(129,140,248,.5),0 6px 22px rgba(99,102,241,.65),0 0 60px rgba(99,102,241,.32),inset 0 1px 0 rgba(255,255,255,.28); }
-      .ln-cta:active { transform:scale(.96); box-shadow:0 0 0 1px rgba(129,140,248,.35),0 2px 8px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.15); }
+      .ln-cta:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(255,255,255,.1); }
+      .ln-cta:active { transform:scale(.96); }
       .ln-cta--full { width:100%; justify-content:center; margin-top:4px; }
 
       /* hamburger */
