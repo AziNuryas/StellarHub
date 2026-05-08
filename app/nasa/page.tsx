@@ -91,19 +91,19 @@ function Lightbox({ item, onClose, onPrev, onNext, hasPrev, hasNext, onTranslate
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 24, width: '100%', maxWidth: 900, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative', zIndex: 1 }}>
         
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 24px', borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#e2e8f0' }}>{item.title}</div>
+            <div style={{ fontSize: 'clamp(14px, 3vw, 16px)', fontWeight: 800, color: '#e2e8f0' }}>{item.title}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{formatDate(item.date)} {item.copyright && `· © ${item.copyright}`}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#f87171', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background .2s' }}><X size={16} /></button>
+          <button onClick={onClose} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#f87171', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background .2s', flexShrink: 0, marginLeft: 12 }}><X size={16} /></button>
         </div>
 
         {/* Content Area - Scrollable */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           
           {/* Media */}
-          <div style={{ position: 'relative', width: '100%', background: '#000', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300 }}>
+          <div style={{ position: 'relative', width: '100%', background: '#000', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 250 }}>
              {!loaded && item.media_type !== 'video' && <div style={{ position: 'absolute' }}><Loader2 size={32} className="animate-spin" color="#818cf8" /></div>}
              {item.media_type === 'video'
                ? <iframe src={embedUrl} style={{ width: '100%', aspectRatio: '16/9', border: 'none' }} allowFullScreen allow="autoplay; encrypted-media; picture-in-picture" />
@@ -112,18 +112,18 @@ function Lightbox({ item, onClose, onPrev, onNext, hasPrev, hasNext, onTranslate
           </div>
 
           {/* Description & Actions */}
-          <div style={{ padding: 32 }}>
+          <div style={{ padding: 'clamp(16px, 4vw, 32px)' }}>
             <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-              <button onClick={onTranslate} style={{ ...actionBtn, padding: '8px 16px', height: 'auto', background: 'rgba(129,140,248,0.1)', borderColor: 'rgba(129,140,248,0.2)', color: '#818cf8', fontWeight: 700 }}>
+              <button onClick={onTranslate} style={{ ...actionBtn, padding: '8px 16px', height: 'auto', background: 'rgba(129,140,248,0.1)', borderColor: 'rgba(129,140,248,0.2)', color: '#818cf8', fontWeight: 700, flex: '1 1 auto' }}>
                 {item.isTranslating ? <Loader2 size={16} className="animate-spin" /> : <><Languages size={16} /> Terjemahkan</>}
               </button>
-              <button onClick={onShare} style={{ ...actionBtn, padding: '8px 16px', height: 'auto', background: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)', color: '#34d399', fontWeight: 700 }}>
+              <button onClick={onShare} style={{ ...actionBtn, padding: '8px 16px', height: 'auto', background: 'rgba(52,211,153,0.1)', borderColor: 'rgba(52,211,153,0.2)', color: '#34d399', fontWeight: 700, flex: '1 1 auto' }}>
                 {item.isSharing ? <Loader2 size={16} className="animate-spin" /> : <><Send size={16} /> Bagikan ke Feed</>}
               </button>
-              {item.media_type === 'image' && <a href={imgUrl} target="_blank" download style={{ ...actionBtn, padding: '8px 16px', height: 'auto', textDecoration: 'none' }}><Download size={16} /> Resolusi Penuh</a>}
+              {item.media_type === 'image' && <a href={imgUrl} target="_blank" download style={{ ...actionBtn, padding: '8px 16px', height: 'auto', textDecoration: 'none', flex: '1 1 auto' }}><Download size={16} /> Resolusi Penuh</a>}
             </div>
             
-            <p style={{ fontSize: 15, color: '#cbd5e1', lineHeight: 1.8, margin: 0 }}>
+            <p style={{ fontSize: 'clamp(14px, 3vw, 15px)', color: '#cbd5e1', lineHeight: 1.8, margin: 0 }}>
               {displayExplanation}
             </p>
           </div>
@@ -149,7 +149,7 @@ function APODCard({ item, onOpen, onTranslate, onShare, viewMode }: any) {
     return (
       <article style={{ display: 'flex', gap: 16, padding: 16, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 8 }}>
         <div style={{ width: 120, height: 80, borderRadius: 8, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }} onClick={item.media_type === 'video' ? () => setPlayVideo(true) : onOpen}>
-          {item.media_type === 'video' ? <div style={{ width: '100%', height: '100%', background: 'rgba(129,140,248,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Play size={24} color="#818cf8" /></div> : <img src={imgUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+          {item.media_type === 'video' ? <div style={{ width: '100%', height: '100%', background: 'rgba(129,140,248,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Play size={24} color="#818cf8" /></div> : <img src={imgUrl} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>{isToday && <span style={badge}>🔴 LIVE</span>}<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDate(item.date)}</span></div>
@@ -172,7 +172,7 @@ function APODCard({ item, onOpen, onTranslate, onShare, viewMode }: any) {
           ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', background: 'rgba(129,140,248,0.06)' }}><Play size={40} color="#818cf8" /></div>
           : item.media_type === 'video' && playVideo
           ? <iframe src={embedUrl} style={{ width: '100%', height: '100%', border: 'none' }} allowFullScreen allow="autoplay; encrypted-media; picture-in-picture" />
-          : <img src={imgUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <img src={imgUrl} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         }
         {isToday && <span style={{ ...badge, position: 'absolute', top: 12, left: 12 }}>🔴 LIVE</span>}
       </div>
@@ -204,7 +204,11 @@ function TodayHero({ item, onOpen, onTranslate, onShare }: any) {
 
   return (
     <div style={{ position: 'relative', borderRadius: 24, overflow: 'hidden', marginBottom: 32, minHeight: 420 }}>
-      {item.media_type === 'image' && <img src={item.hdurl || item.url} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} />}
+      {(item.media_type === 'image' || item.thumbnail_url) && (
+        <img src={item.media_type === 'image' ? item.url : item.thumbnail_url} 
+             loading="eager" 
+             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} />
+      )}
       {item.media_type === 'video' && playVideo && (
         <iframe src={embedUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }} allowFullScreen allow="autoplay; encrypted-media; picture-in-picture" />
       )}
@@ -214,14 +218,14 @@ function TodayHero({ item, onOpen, onTranslate, onShare }: any) {
         </div>
       )}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, #07090f 0%, rgba(7,9,15,0.6) 50%, transparent)' }} />
-      <div style={{ position: 'relative', zIndex: 1, padding: 40, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minHeight: 420 }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: 'clamp(20px, 5vw, 40px)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minHeight: 420 }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}><span style={badge}>🔴 NASA APOD</span><span style={{ ...badge, background: 'rgba(129,140,248,0.12)', color: '#818cf8' }}>{formatDate(item.date)}</span></div>
-        <h2 style={{ fontSize: 32, fontWeight: 800, color: '#e2e8f0', marginBottom: 12 }}>{item.title}</h2>
-        <p style={{ color: '#94a3b8', marginBottom: 20, maxWidth: 680 }}>{item.translatedExplanation || item.explanation}</p>
+        <h2 style={{ fontSize: 'clamp(24px, 4vw, 32px)', fontWeight: 800, color: '#e2e8f0', marginBottom: 12 }}>{item.title}</h2>
+        <p style={{ color: '#94a3b8', marginBottom: 20, maxWidth: 680, fontSize: 'clamp(14px, 3vw, 16px)' }}>{item.translatedExplanation || item.explanation}</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button onClick={onOpen} style={{ padding: '10px 22px', borderRadius: 12, background: 'linear-gradient(135deg, #818cf8, #6d28d9)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}><Maximize2 size={15} /> Lihat Penuh</button>
-          <button onClick={onTranslate} style={{ padding: '10px 22px', borderRadius: 12, background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)', color: '#a78bfa', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}><Languages size={15} /> Terjemahkan</button>
-          <button onClick={onShare} style={{ padding: '10px 22px', borderRadius: 12, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)', color: '#34d399', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={onOpen} style={{ padding: '10px 22px', borderRadius: 12, background: 'linear-gradient(135deg, #818cf8, #6d28d9)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 auto', justifyContent: 'center' }}><Maximize2 size={15} /> Lihat Penuh</button>
+          <button onClick={onTranslate} style={{ padding: '10px 22px', borderRadius: 12, background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)', color: '#a78bfa', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 auto', justifyContent: 'center' }}><Languages size={15} /> Terjemahkan</button>
+          <button onClick={onShare} style={{ padding: '10px 22px', borderRadius: 12, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)', color: '#34d399', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 auto', justifyContent: 'center' }}>
             {item.isSharing ? <Loader2 size={15} className="animate-spin" /> : <><Send size={15} /> Bagikan ke Feed</>}
           </button>
         </div>
@@ -235,6 +239,8 @@ function TodayHero({ item, onOpen, onTranslate, onShare }: any) {
 /* ══════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════ */
+import React from 'react';
+
 export default function NasaPage() {
   const supabase = createClient()
   const router = useRouter()
@@ -254,7 +260,7 @@ export default function NasaPage() {
 
   // Fetch current user
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+    supabase.auth.getUser().then(({ data: { user } }: { data: { user: any } }) => setUser(user))
   }, [])
 
   // Share APOD to Feed
@@ -304,21 +310,41 @@ export default function NasaPage() {
     const url = `https://api.nasa.gov/planetary/apod?api_key=${NASA_KEY}&start_date=${from}&end_date=${to}&thumbs=true`
     const res = await fetch(url)
     const data = await res.json()
-    return data.reverse().map((item: any) => ({
-      ...item,
-      media_type: item.media_type === 'video' ? 'video' : 'image',
-      thumbnail_url: item.thumbnail_url,
-    }))
+    
+    if (!res.ok) {
+      if (data.msg?.includes('No data available')) return []
+      throw new Error(data.msg || 'API Error')
+    }
+    
+    if (Array.isArray(data)) {
+      return data.reverse().map((item: any) => ({
+        ...item,
+        media_type: item.media_type === 'video' ? 'video' : 'image',
+        thumbnail_url: item.thumbnail_url,
+      }))
+    }
+    return []
   }, [])
 
   const loadInitialAPOD = async () => {
     setLoadingAPOD(true)
     try {
-      const today = new Date().toISOString().split('T')[0]
-      const apods = await loadAPODData(today, ITEMS_PER_PAGE)
+      // Fetch the absolute latest APOD first to get the correct max date (prevents future date errors)
+      const latestRes = await fetch(`https://api.nasa.gov/planetary/apod?api_key=${NASA_KEY}&thumbs=true`)
+      const latestData = await latestRes.json()
+      
+      if (!latestRes.ok) {
+        throw new Error(latestData.msg || 'Gagal memuat APOD')
+      }
+
+      const latestDate = latestData.date
+      const apods = await loadAPODData(latestDate, ITEMS_PER_PAGE)
       oldestDateRef.current = apods[apods.length - 1]?.date || ''
       setItems(apods)
-    } catch { toast.error('Gagal memuat APOD') }
+    } catch (e: any) { 
+      console.error(e)
+      toast.error(e.message || 'Gagal memuat APOD') 
+    }
     finally { setLoadingAPOD(false) }
   }
 
@@ -411,13 +437,13 @@ export default function NasaPage() {
         )}
 
         {loadingAPOD ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 16 }}>
             {Array(9).fill(0).map((_, i) => <div key={i} style={{ aspectRatio: '16/10', background: 'var(--bg-elevated)', borderRadius: 16 }} className="skeleton" />)}
           </div>
         ) : filteredAPOD.length === 0 ? (
           <p style={{ textAlign: 'center', padding: 40 }}>Tidak ada data</p>
         ) : (
-          <div style={viewMode === 'grid' ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={viewMode === 'grid' ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 16 } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
             {filteredAPOD.slice(1).map(item => {
               const idx = items.indexOf(item)
               return <APODCard key={item.date} item={item} viewMode={viewMode} onOpen={() => setLightboxIdx(idx)} onTranslate={() => handleTranslate(idx)} onShare={() => handleShare(idx)} />

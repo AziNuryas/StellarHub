@@ -2,8 +2,18 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Search, Clock, ExternalLink, Calendar, Loader2, X, AlertTriangle } from 'lucide-react'
+import { Search, Clock, ExternalLink, Calendar, Loader2, X, AlertTriangle, Languages, Share2, Sparkles, MessageCircle, Globe, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuth } from '@/app/contexts/AuthContext'
+import { createClient } from '@/lib/supabase/client'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog"
   
 export default function ExplorePage() {
   const router = useRouter()
@@ -112,6 +122,294 @@ export default function ExplorePage() {
   const handleTagClick = (tag: string) => {
     setSearchQuery(`#${tag}`)
     fetchExploreContent(true)
+  }
+
+  // Handle Share to Feed
+  const handleShareToFeed = async (item: any) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      toast.error('Silakan login untuk membagikan ke feed')
+      return
+    }
+
+    try {
+      const content = `🚀 **Berita Luar Angkasa Baru!**\n\n**${item.title}**\n\n${item.summary}\n\nSumber: ${item.url}`
+      const { error } = await supabase.from('posts').insert({
+        content,
+        user_id: user.id,
+        title: item.title,
+        image_url: item.image_url,
+        category: 'News'
+      })
+
+      if (error) throw error
+      toast.success('Berhasil dibagikan ke feed! ✨')
+    } catch (error: any) {
+      console.error('Error sharing to feed:', error)
+      toast.error('Gagal membagikan ke feed')
+    }
+  }
+
+  // News Card Component
+  const NewsCard = ({ item }: { item: any }) => {
+    const [translatedTitle, setTranslatedTitle] = useState('')
+    const [translatedSummary, setTranslatedSummary] = useState('')
+    const [isTranslating, setIsTranslating] = useState(false)
+    const [isSharing, setIsSharing] = useState(false)
+    const [showPopup, setShowPopup] = useState(false)
+
+    const handleTranslate = async (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      
+      if (translatedTitle) {
+        setTranslatedTitle('')
+        setTranslatedSummary('')
+        return
+      }
+
+      setIsTranslating(true)
+      try {
+        const [titleRes, summaryRes] = await Promise.all([
+          fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: item.title })
+          }),
+          fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: item.summary })
+          })
+        ])
+
+        const titleData = await titleRes.json()
+        const summaryData = await summaryRes.json()
+
+        setTranslatedTitle(titleData.translated)
+        setTranslatedSummary(summaryData.translated)
+      } catch (error) {
+        toast.error('Gagal menerjemahkan berita')
+      } finally {
+        setIsTranslating(false)
+      }
+    }
+
+    const shareToFeed = async (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsSharing(true)
+      await handleShareToFeed(item)
+      setIsSharing(false)
+    }
+
+    // Optimization logic: ringkas (take first 2 sentences)
+    const getOptimizedText = (text: string) => {
+      const sentences = text.match(/[^.!?]+[.!?]+/g) || [text]
+      return sentences.slice(0, 2).join(' ') + (sentences.length > 2 ? '...' : '')
+    }
+
+    return (
+      <div 
+        className="news-card"
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 24,
+          overflow: 'hidden',
+          transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative'
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.transform = 'translateY(-8px)'
+          e.currentTarget.style.borderColor = 'var(--accent)'
+          e.currentTarget.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)'
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = 'translateY(0)'
+          e.currentTarget.style.borderColor = 'var(--border-color)'
+          e.currentTarget.style.boxShadow = 'none'
+        }}
+      >
+        <div style={{ height: 220, overflow: 'hidden', position: 'relative' }}>
+          {item.image_url ? (
+            <img src={item.image_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(45deg, #1a1a2e, #16213e)', fontSize: 32 }}>📰</div>
+          )}
+          <div style={{ 
+            position: 'absolute', top: 16, left: 16, padding: '6px 12px', 
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', 
+            borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#fff', 
+            border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: 6
+          }}>
+            <Globe size={12} color="#38bdf8" />
+            {item.news_site}
+          </div>
+        </div>
+
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+            <Calendar size={14} />
+            {new Date(item.published_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </div>
+
+          <h3 style={{ 
+            fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', 
+            marginBottom: 12, lineHeight: 1.4, fontFamily: "'Archivo Black', sans-serif" 
+          }}>
+            {translatedTitle || item.title}
+          </h3>
+
+          <div style={{ position: 'relative', flex: 1 }}>
+            <p style={{ 
+              fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.7, 
+              marginBottom: 20, display: '-webkit-box', 
+              WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', 
+              overflow: 'hidden' 
+            }}>
+              {getOptimizedText(translatedSummary || item.summary)}
+            </p>
+            
+            <Dialog open={showPopup} onOpenChange={setShowPopup}>
+              <DialogTrigger asChild>
+                <button 
+                  style={{
+                    position: 'absolute', bottom: -5, right: 0, 
+                    background: 'none', border: 'none', color: 'var(--accent)',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    padding: '2px 8px', borderRadius: 4, transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(129,140,248,0.1)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
+                >
+                  Detail & Teks Asli →
+                </button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[650px] p-0 overflow-hidden bg-transparent border-none shadow-[0_30px_100px_rgba(0,0,0,0.8)]">
+                <div style={{
+                  background: 'rgba(11,14,26,0.95)',
+                  backdropFilter: 'blur(24px)',
+                  border: '1px solid rgba(129,140,248,0.25)',
+                  borderRadius: 24,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative'
+                }}>
+                  {item.image_url && (
+                    <div style={{ height: 140, position: 'relative' }}>
+                      <img src={item.image_url} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }} />
+                      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(11,14,26,1) 10%, transparent)' }} />
+                    </div>
+                  )}
+
+                  <div style={{ padding: '0 32px 32px', marginTop: item.image_url ? -40 : 32, position: 'relative', zIndex: 10 }}>
+                    <DialogHeader>
+                      <DialogTitle style={{
+                        fontSize: 22, fontWeight: 800, fontFamily: "'Archivo Black', sans-serif",
+                        color: '#fff', marginBottom: 24, lineHeight: 1.4,
+                        textShadow: '0 2px 10px rgba(0,0,0,0.5)'
+                      }}>
+                        {translatedTitle || item.title}
+                      </DialogTitle>
+                    </DialogHeader>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      <div style={{
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: 16,
+                        padding: 20
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#94a3b8' }} />
+                          <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: '#94a3b8' }}>Penjelasan Lengkap</span>
+                        </div>
+                        <p style={{ fontSize: 14, color: '#cbd5e1', lineHeight: 1.8, margin: 0 }}>
+                          {item.summary}
+                        </p>
+                      </div>
+                      
+                      {translatedSummary && (
+                        <div style={{
+                          background: 'linear-gradient(135deg, rgba(124,58,237,0.08), rgba(14,165,233,0.05))',
+                          border: '1px solid rgba(129,140,248,0.3)',
+                          borderRadius: 16,
+                          padding: 20,
+                          boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                            <Languages size={14} color="#a78bfa" />
+                            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: '#a78bfa' }}>Terjemahan Indonesia</span>
+                          </div>
+                          <p style={{ fontSize: 14, color: '#e2e8f0', lineHeight: 1.8, margin: 0 }}>
+                            {translatedSummary}
+                          </p>
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: 12, display: 'flex', gap: 12 }}>
+                        <a 
+                          href={item.url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          style={{
+                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            padding: '12px 24px', background: '#e2e8f0', color: '#0f172a',
+                            borderRadius: 14, fontSize: 14, fontWeight: 700, textDecoration: 'none',
+                            transition: 'all 0.2s', border: '1px solid transparent'
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.background = '#fff' }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.background = '#e2e8f0' }}
+                        >
+                          <BookOpen size={16} /> Buka Sumber Asli
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20, marginTop: 20 }}>
+            <button 
+              onClick={handleTranslate}
+              className="news-card-btn"
+              style={{
+                padding: '6px 12px', background: 'rgba(129,140,248,0.1)', 
+                border: '1px solid rgba(129,140,248,0.2)', borderRadius: 12,
+                fontSize: 12, fontWeight: 600, color: 'var(--accent)',
+                display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'
+              }}
+            >
+              <Languages size={14} />
+              {isTranslating ? 'Menerjemahkan...' : translatedTitle ? 'Tampilkan Asli' : 'Terjemahkan'}
+            </button>
+
+            <button 
+              onClick={shareToFeed}
+              disabled={isSharing}
+              className="news-card-btn"
+              style={{ 
+                padding: '6px 12px', background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', 
+                borderRadius: 12, border: 'none', color: '#fff', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600
+              }}
+            >
+              {isSharing ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
+              Bagikan ke Feed
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
 
@@ -446,6 +744,42 @@ export default function ExplorePage() {
           font-size: 14px;
           color: var(--text-muted);
         }
+        .news-card {
+          position: relative;
+          background: var(--bg-card);
+          border: 1px solid var(--border-color);
+          border-radius: 24px;
+          transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .news-card:hover {
+          transform: translateY(-10px) scale(1.02);
+          border-color: var(--accent);
+          box-shadow: 0 30px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(129,140,248,0.2);
+        }
+        .news-card-btn {
+          cursor: pointer;
+          transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
+        }
+        .news-card-btn:hover {
+          transform: translateY(-2px);
+          filter: brightness(1.2);
+        }
+        .news-card-btn:active {
+          transform: translateY(0) scale(0.95);
+        }
+        .news-card-btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: rgba(255,255,255,0.1);
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+        .news-card-btn:hover::after {
+          opacity: 1;
+        }
       `}</style>
 
       <div className="explore-container">
@@ -494,58 +828,9 @@ export default function ExplorePage() {
             <p className="empty-sub">Coba gunakan kata kunci pencarian yang lain.</p>
           </div>
         ) : (
-          <div className="grid-view" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+          <div className="grid-view" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '24px' }}>
             {contents.map((item: any, i) => (
-              <a 
-                href={item.url} 
-                target="_blank" 
-                rel="noreferrer" 
-                key={item.id}
-                style={{ textDecoration: 'none' }}
-              >
-                <div style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 20,
-                  overflow: 'hidden',
-                  transition: 'all 0.3s ease',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)'
-                  e.currentTarget.style.borderColor = 'var(--accent)'
-                  e.currentTarget.style.boxShadow = '0 12px 30px rgba(0,0,0,0.2)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)'
-                  e.currentTarget.style.borderColor = 'var(--border-color)'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-                >
-                  <div style={{ height: 200, overflow: 'hidden', position: 'relative' }}>
-                    {item.image_url ? (
-                       <img src={item.image_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                       <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(45deg, #1a1a2e, #16213e)', fontSize: 32 }}>📰</div>
-                    )}
-                    <div style={{ position: 'absolute', top: 12, left: 12, padding: '4px 10px', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}>
-                      {item.news_site}
-                    </div>
-                  </div>
-                  <div style={{ padding: 16, display: 'flex', flexDirection: 'column', flex: 1 }}>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</h3>
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1 }}>{item.summary}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-                        <Clock size={12} /> {new Date(item.published_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      </div>
-                      <ExternalLink size={14} color="var(--text-muted)" />
-                    </div>
-                  </div>
-                </div>
-              </a>
+              <NewsCard key={item.id} item={item} />
             ))}
           </div>
         )}

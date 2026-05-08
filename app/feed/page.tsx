@@ -756,7 +756,7 @@ html{scroll-behavior:smooth}body{overflow-x:hidden}
 .pcard:nth-child(1){animation-delay:.04s}.pcard:nth-child(2){animation-delay:.09s}.pcard:nth-child(3){animation-delay:.14s}.pcard:nth-child(n+4){animation-delay:.18s}
 .pcard-head{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px 14px;gap:10px}
 .pcard-author{display:flex;align-items:center;gap:12px;text-decoration:none;flex:1;min-width:0}
-.pcard-name{font-size:15px;font-weight:700;color:var(--txt);font-family:'Archivo Black',sans-serif}
+.pcard-name{font-size:15px;font-weight:700;color:var(--txt);font-family:'Archivo Black',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* single image */
 .cs-single{position:relative;border-top:1px solid var(--border);border-bottom:1px solid var(--border);overflow:hidden;cursor:pointer;line-height:0}
@@ -878,9 +878,10 @@ html{scroll-behavior:smooth}body{overflow-x:hidden}
 
 /* reactions */
 .react-bar{display:flex;align-items:center;gap:12px;padding:7px 20px;border-top:1px solid var(--border2)}
-.pcard-actions{display:flex;align-items:center;padding:4px 10px 6px;gap:2px;border-top:1px solid var(--border2)}
-.abt{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:12px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;transition:all .2s}
+.pcard-actions{display:flex;align-items:center;padding:4px 10px 6px;gap:2px;border-top:1px solid var(--border2);justify-content:space-between}
+.abt{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:12px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;transition:all .2s;flex:1;justify-content:center}
 .abt:hover{background:rgba(255,255,255,.05);color:var(--txt2)}
+.abt span{display:inline}@media(max-width:480px){.abt span{display:none}.abt{padding:8px 6px}}
 .abt-lk{color:#f472b6 !important}.abt-lk svg{animation:hpop .36s ease both}.abt-lk:hover{background:rgba(244,114,182,.08) !important}
 .abt-cm:hover{color:#38bdf8;background:rgba(56,189,248,.08) !important}
 .abt-rp{color:#34d399 !important}.abt-rp:hover{background:rgba(52,211,153,.08) !important}
