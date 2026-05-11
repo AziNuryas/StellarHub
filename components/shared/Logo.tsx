@@ -7,15 +7,15 @@ interface LogoProps {
 }
 
 export function Logo({ className = '', size = 24, glow = false }: LogoProps) {
-  const h = size / 2
-  const s = size / 24
+  const h = 12 // Half of viewBox 24
+  const s = 1  // Scale unit for viewBox 24
 
   // 3 orbiting nodes — community members connected to the hub
-  const nodeRadius = h * 0.73
+  const nodeRadius = 8.75 // (h * 0.73 approx)
   const nodeData = [
-    { angle: -55, color: '#818cf8', dotR: s * 1.35, lineOpacity: 0.55 }, // top-right — indigo
-    { angle:  90, color: '#38bdf8', dotR: s * 1.10, lineOpacity: 0.45 }, // bottom   — sky
-    { angle: 215, color: '#a78bfa', dotR: s * 1.22, lineOpacity: 0.50 }, // top-left — violet
+    { angle: -55, color: '#818cf8', dotR: 1.35, lineOpacity: 0.55 }, // top-right — indigo
+    { angle:  90, color: '#38bdf8', dotR: 1.10, lineOpacity: 0.45 }, // bottom   — sky
+    { angle: 215, color: '#a78bfa', dotR: 1.22, lineOpacity: 0.50 }, // top-left — violet
   ].map(n => ({
     ...n,
     x: h + nodeRadius * Math.cos((n.angle * Math.PI) / 180),

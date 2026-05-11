@@ -1005,26 +1005,28 @@ export default function FeedPage() {
     }
   }, [user?.id, authLoading]); // Only re-fetch if user ID changes or auth settles
 
-  const [debugError, setDebugError] = useState<any>(null);
-  const fetchPosts=async()=>{
-    try{
-      let res = await supabase.from('posts')
-        .select(`*,profiles(username,avatar_url),likes(id,user_id),comments(id,content,created_at,user_id,post_id,profiles(username,avatar_url)),post_images(id,url,order_index)`)
-        .order('created_at',{ascending:false}).limit(15);
-        
-      if (res.error && res.error.message?.includes('post_images')) {
-        console.warn("post_images relation missing, falling back to basic query");
-        res = await supabase.from('posts')
-          .select(`*,profiles(username,avatar_url),likes(id,user_id),comments(id,content,created_at,user_id,post_id,profiles(username,avatar_url))`)
-          .order('created_at',{ascending:false}).limit(15);
-      }
+  const fetchPosts = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.from('posts')
+        .select('*, profiles(username, avatar_url), likes(id, user_id), comments(id, content, created_at, user_id, post_id, profiles(username, avatar_url)), post_images(id, url, order_index)')
+        .order('created_at', { ascending: false })
+        .limit(15);
       
-      const { data, error } = res;
-      if(error) { setDebugError(error); throw error; }
-      setPosts(data||[]);
-    }catch(e: any){
-      setDebugError({ message: e.message || 'Fetch failed', details: e.toString() });
-      toast.error('Failed to load posts');
+      if (error) {
+        // Fallback for missing post_images
+        const fallback = await supabase.from('posts')
+          .select('*, profiles(username, avatar_url), likes(id, user_id), comments(id, content, created_at, user_id, post_id, profiles(username, avatar_url))')
+          .order('created_at', { ascending: false })
+          .limit(15);
+        if (fallback.error) throw fallback.error;
+        setPosts(fallback.data || []);
+      } else {
+        setPosts(data || []);
+      }
+    } catch (e) {
+      console.error("Feed error:", e);
+      toast.error('Gagal memuat postingan');
     } finally {
       setLoading(false);
     }
@@ -1081,19 +1083,6 @@ export default function FeedPage() {
 
   const visible=tab==='trending'?[...posts].sort((a,b)=>((b.likes?.length??0)+(b.comments?.length??0))-((a.likes?.length??0)+(a.comments?.length??0))):posts;
 
-  if (debugError) {
-    return (
-      <div style={{marginTop:100, padding: 20, background: 'rgba(255,0,0,0.1)', color: '#ff4444', borderRadius: 12, margin: '100px 20px 20px'}}>
-        <h2 style={{fontSize: 20, fontWeight: 'bold', marginBottom: 12}}>🚨 Error Fetching Feed</h2>
-        <p><strong>Message:</strong> {debugError.message || 'Unknown Error'}</p>
-        <p><strong>Hint:</strong> {debugError.hint || 'None'}</p>
-        <p><strong>Details:</strong> {debugError.details || 'None'}</p>
-        <pre style={{marginTop: 16, background: '#000', padding: 12, borderRadius: 8, overflowX: 'auto'}}>
-          {JSON.stringify(debugError, null, 2)}
-        </pre>
-      </div>
-    )
-  }
 
   return (
     <div className="feed-page">
@@ -1121,6 +1110,8 @@ export default function FeedPage() {
               <p style={{fontSize:14,color:'var(--muted)',lineHeight:1.65,marginBottom:20}}>
                 Aplikasi berhasil terhubung ke database, tapi Supabase mengembalikan 0 data.
               </p>
+              
+
               <div style={{background:'rgba(255,100,100,0.1)',padding:16,borderRadius:12,textAlign:'left',display:'inline-block'}}>
                 <strong style={{color:'#ff6b6b',display:'block',marginBottom:8}}>🚨 Cek 2 Hal Ini di Supabase:</strong>
                 <ol style={{color:'#f8b4b4',fontSize:13,margin:0,paddingLeft:20,lineHeight:1.6}}>
