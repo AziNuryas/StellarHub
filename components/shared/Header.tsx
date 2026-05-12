@@ -32,7 +32,7 @@ export default function Header() {
 
     getUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
       console.log('Header auth change:', _event, session?.user?.email);
       setUser(session?.user || null);
     });

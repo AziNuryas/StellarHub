@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/contexts/AuthContext';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Heart, MessageCircle, Share2, Bookmark, Send,
   Image as ImageIcon, X, TrendingUp, Zap, Clock,
@@ -371,7 +372,8 @@ function PostCard({post,me,onLike,onComment,onDelete,onBookmark,bookmarked}:{
   const likeN=post.likes?.length??0;
   const cmtN=post.comments?.length??0;
   const isOwn=me?.id===post.user_id;
-  const isNASA=post.content?.includes('🌌')&&post.content?.includes('Deskripsi NASA:');
+  const isNASA=post.content?.includes('NASA APOD:');
+  const isNews=post.content?.includes('Space News:');
   const uname=post.profiles?.username||'Anonymous';
 
   const allImages:string[]=(post.post_images&&post.post_images.length>0
@@ -408,14 +410,14 @@ function PostCard({post,me,onLike,onComment,onDelete,onBookmark,bookmarked}:{
           <div>
             <div style={{display:'flex',alignItems:'center',gap:7}}>
               <span className="pcard-name">{uname}</span>
-              {isNASA&&<span className="nasa-badge">NASA</span>}
+              {isNASA&&<span className="nasa-badge" style={{background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700}}>NASA APOD</span>}
+              {isNews&&<span className="nasa-badge" style={{background: 'rgba(167, 139, 250, 0.1)', color: '#a78bfa', padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700}}>SPACE NEWS</span>}
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:5,marginTop:3}}>
-              <Clock style={{width:10,height:10,color:'var(--muted)'}}/>
-              <span style={{fontSize:11.5,color:'var(--muted)'}}>{timeAgo(post.created_at)}</span>
-              <span style={{color:'var(--muted)',fontSize:9}}>·</span>
-              <Globe style={{width:10,height:10,color:'var(--muted)'}}/>
-              {allImages.length>1&&<><span style={{color:'var(--muted)',fontSize:9}}>·</span><span style={{fontSize:11,color:'var(--accent)',fontWeight:700}}>{allImages.length} photos</span></>}
+            <div style={{display:'flex',alignItems:'center',gap:6,marginTop:4}}>
+              <span style={{fontSize:12,color:'var(--muted)',fontWeight:500}}>{timeAgo(post.created_at)}</span>
+              <span style={{color:'var(--muted)',fontSize:10}}>•</span>
+              <Globe style={{width:12,height:12,color:'var(--muted)'}}/>
+              {allImages.length>1&&<><span style={{color:'var(--muted)',fontSize:10}}>•</span><span style={{fontSize:11,color:'var(--accent)',fontWeight:700}}>{allImages.length} photos</span></>}
             </div>
           </div>
         </a>
@@ -552,14 +554,14 @@ function PostCard({post,me,onLike,onComment,onDelete,onBookmark,bookmarked}:{
 /* ════════════════════════════════════════════
    COMPOSE BOX
 ════════════════════════════════════════════ */
-function ComposeBox({user,onPost}:{user:any;onPost:(c:string,f:File[],u:string[])=>Promise<void>}) {
-  const [content,setContent]=useState('');
+function ComposeBox({user, initialContent = '', initialImgUrl = '', onPost}:{user:any; initialContent?:string; initialImgUrl?:string; onPost:(c:string,f:File[],u:string[])=>Promise<void>}) {
+  const [content,setContent]=useState(initialContent);
   const [files,setFiles]=useState<File[]>([]);
   const [prevs,setPrevs]=useState<string[]>([]);
-  const [imgUrl,setImgUrl]=useState('');
+  const [imgUrl,setImgUrl]=useState(initialImgUrl);
   const [busy,setBusy]=useState(false);
-  const [showUrl,setShowUrl]=useState(false);
-  const [focused,setFocused]=useState(false);
+  const [showUrl,setShowUrl]=useState(!!initialImgUrl);
+  const [focused,setFocused]=useState(!!initialContent || !!initialImgUrl);
   const [dragOver,setDragOver]=useState(false);
   const ta=useRef<HTMLTextAreaElement>(null);
   const fi=useRef<HTMLInputElement>(null);
@@ -614,7 +616,16 @@ function ComposeBox({user,onPost}:{user:any;onPost:(c:string,f:File[],u:string[]
               </div>
             </>
           )}
-          {showUrl&&!prevs.length&&<input className="cmp-url" placeholder="Paste image URL…" value={imgUrl} onChange={e=>setImgUrl(e.target.value)}/>}
+          {showUrl&&!prevs.length&&(
+            <div style={{marginTop: 12}}>
+              <input className="cmp-url" placeholder="Paste image URL…" value={imgUrl} onChange={e=>setImgUrl(e.target.value)}/>
+              {imgUrl && (
+                <div style={{marginTop: 12, borderRadius: 12, overflow: 'hidden', height: 160, width: 'fit-content', border: '1px solid var(--border)'}}>
+                  <img src={imgUrl} alt="Preview" style={{height: '100%', objectFit: 'cover'}} onError={(e) => e.currentTarget.style.display = 'none'} />
+                </div>
+              )}
+            </div>
+          )}
           <div className="cmp-foot">
             <div style={{display:'flex',gap:2}}>
               {[
@@ -980,6 +991,8 @@ html{scroll-behavior:smooth}body{overflow-x:hidden}
 export default function FeedPage() {
   const [supabase] = useState(() => createClient());
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [posts,setPosts]=useState<Post[]>([]);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('latest');
@@ -1008,10 +1021,20 @@ export default function FeedPage() {
   const fetchPosts = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.from('posts')
+      console.log('Fetching posts...');
+      
+      const queryPromise = supabase.from('posts')
         .select('*, profiles(username, avatar_url), likes(id, user_id), comments(id, content, created_at, user_id, post_id, profiles(username, avatar_url)), post_images(id, url, order_index)')
         .order('created_at', { ascending: false })
         .limit(15);
+
+      // Force a 10-second timeout on the query
+      const { data, error } = await Promise.race([
+        queryPromise,
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Query timeout after 10s')), 10000))
+      ]);
+      
+      console.log('Fetch complete', { dataLength: data?.length, error });
       
       if (error) {
         // Fallback for missing post_images
@@ -1019,14 +1042,31 @@ export default function FeedPage() {
           .select('*, profiles(username, avatar_url), likes(id, user_id), comments(id, content, created_at, user_id, post_id, profiles(username, avatar_url))')
           .order('created_at', { ascending: false })
           .limit(15);
-        if (fallback.error) throw fallback.error;
-        setPosts(fallback.data || []);
+        if (fallback.error) {
+          // Simplest fallback in case relationships are entirely missing
+          const simple = await supabase.from('posts')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(15);
+          if (simple.error) throw simple.error;
+          setPosts(simple.data || []);
+        } else {
+          setPosts(fallback.data || []);
+        }
       } else {
         setPosts(data || []);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Feed error:", e);
-      toast.error('Gagal memuat postingan');
+      if (e.message && e.message.includes('timeout')) {
+        toast.error('Koneksi terputus/lambat. Memuat ulang sistem...');
+        if (typeof window !== 'undefined') {
+          Object.keys(localStorage).forEach(k => { if(k.startsWith('sb-')||k.startsWith('supabase')) localStorage.removeItem(k) });
+          setTimeout(() => window.location.reload(), 2000);
+        }
+      } else {
+        toast.error('Gagal memuat postingan');
+      }
     } finally {
       setLoading(false);
     }
@@ -1035,7 +1075,14 @@ export default function FeedPage() {
   const handlePost=async(content:string,imgFiles:File[],imageUrls:string[])=>{
     if(!user){toast.error('Sign in first');return;}
     try{
-      const{data:pd,error:pe}=await supabase.from('posts').insert({content,user_id:user.id,title:content.slice(0,80)||'Post',image_url:null}).select().single();
+      console.log('Posting...', {content});
+      
+      const insertPromise = supabase.from('posts').insert({content,user_id:user.id,title:content.slice(0,80)||'Post',image_url:null}).select().single();
+      const {data:pd,error:pe} = await Promise.race([
+        insertPromise,
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Insert timeout after 10s')), 10000))
+      ]);
+      
       if(pe)throw pe;
       const urls:string[]=[];
       for(const f of imgFiles){
@@ -1089,7 +1136,17 @@ export default function FeedPage() {
       <style>{CSS}</style>
       <div className="feed-grid">
         <div>
-          <ComposeBox user={user} onPost={handlePost}/>
+          <ComposeBox 
+            user={user} 
+            initialContent={searchParams?.get('share_text') || ''} 
+            initialImgUrl={searchParams?.get('share_image') || ''}
+            onPost={async (c, f, u) => {
+              await handlePost(c, f, u);
+              if (searchParams?.has('share_text')) {
+                router.replace('/feed', { scroll: false });
+              }
+            }}
+          />
           {newCount>0&&(
             <div className="new-bar" onClick={()=>{setNewCount(0);window.scrollTo({top:0,behavior:'smooth'});fetchPosts();}}>
               <ArrowUp style={{width:13,height:13}}/>{newCount} new posts — tap to refresh

@@ -1,4 +1,4 @@
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 declare global {
   interface Window {
@@ -23,7 +23,7 @@ export function createClient() {
   // Return singleton if in browser to prevent navigator.locks deadlocks
   if (typeof window !== 'undefined') {
     if (!browserClient) {
-      browserClient = createBrowserClient(
+      browserClient = createSupabaseClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
         {
@@ -31,7 +31,18 @@ export function createClient() {
             persistSession: true,
             autoRefreshToken: true,
             detectSessionInUrl: true,
-            storageKey: 'stellarhub-auth-token',
+
+            storage: {
+              getItem: (key: string) => {
+                try { return window.localStorage.getItem(key) } catch(e) { return null }
+              },
+              setItem: (key: string, value: string) => {
+                try { window.localStorage.setItem(key, value) } catch(e) {}
+              },
+              removeItem: (key: string) => {
+                try { window.localStorage.removeItem(key) } catch(e) {}
+              }
+            }
           },
         }
       );
@@ -40,7 +51,7 @@ export function createClient() {
   }
 
   // Always return fresh client on server
-  return createBrowserClient(
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   )

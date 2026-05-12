@@ -1,14 +1,9 @@
 import type { Metadata } from "next"
-import { Inter, DM_Sans, Archivo_Black } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "sonner"
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import ClientLayout from '@/components/ClientLayout'
-
-const inter = Inter({ subsets: ["latin"] })
-const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans", weight: ["400", "500", "600"] })
-const archivoBlack = Archivo_Black({ subsets: ["latin"], variable: "--font-archivo", weight: "400" })
 
 export const metadata: Metadata = {
   title: {
@@ -57,7 +52,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className={`${inter.className} ${dmSans.variable} ${archivoBlack.variable} antialiased`}>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet" />
+      </head>
+      <body className="antialiased">
         <ThemeProvider>
           <AuthProvider>
             <ClientLayout>

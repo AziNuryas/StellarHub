@@ -11,6 +11,25 @@ import {
 } from 'lucide-react';
 import { gsap } from 'gsap';
 
+const STARS = Array.from({ length: 40 }, (_, i) => ({
+  id: i,
+  x: Math.random() * 100,
+  y: Math.random() * 100,
+  size: Math.random() * 2 + 1,
+  dur: Math.random() * 3 + 2,
+  delay: Math.random() * 2,
+  opacity: Math.random() * 0.5 + 0.3
+}));
+
+const METEORS = Array.from({ length: 5 }, (_, i) => ({
+  id: i,
+  x: Math.random() * 100,
+  y: Math.random() * 100,
+  length: Math.random() * 30 + 10,
+  dur: Math.random() * 1.5 + 1,
+  delay: Math.random() * 5,
+}));
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -30,7 +49,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: any) => {
       if (session) setExistingSession(session);
       setChecking(false);
     });

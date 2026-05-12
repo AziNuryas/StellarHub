@@ -81,10 +81,10 @@ function FollowModal({open,onClose,type,profileId,meId}:{open:boolean;onClose:()
       let data:any[]=[];
       if(type==='followers'){
         const{data:rows}=await supabase.from('follows').select('follower_id, profiles!follows_follower_id_fkey(id,username,avatar_url,full_name,bio)').eq('following_id',profileId);
-        data=(rows||[]).map(r=>r.profiles).filter(Boolean);
+        data=(rows||[]).map((r: any)=>r.profiles).filter(Boolean);
       } else {
         const{data:rows}=await supabase.from('follows').select('following_id, profiles!follows_following_id_fkey(id,username,avatar_url,full_name,bio)').eq('follower_id',profileId);
-        data=(rows||[]).map(r=>r.profiles).filter(Boolean);
+        data=(rows||[]).map((r: any)=>r.profiles).filter(Boolean);
       }
       setUsers(data);
       if(meId){
@@ -374,7 +374,7 @@ export default function ProfilePage({params}:Props) {
         supabase.from('follows').select('*',{count:'exact',head:true}).eq('following_id',prof.id),
         supabase.from('follows').select('*',{count:'exact',head:true}).eq('follower_id',prof.id),
       ]);
-      const totalLikes=(postsData||[]).reduce((s,p)=>s+(p.likes?.length??0),0);
+      const totalLikes=(postsData||[]).reduce((s: number,p: any)=>s+(p.likes?.length??0),0);
       setStats({posts:postsData?.length??0,followers:flrs??0,following:fling??0,likes:totalLikes});
     }catch(e){console.error(e);toast.error('Failed to load');}
     finally{setLoading(false);}
@@ -394,7 +394,7 @@ export default function ProfilePage({params}:Props) {
   useEffect(()=>{
     if(!me||!profile||isOwn)return;
     supabase.from('follows').select('id').eq('follower_id',me.id).eq('following_id',profile.id).maybeSingle()
-      .then(({data})=>setFollowing(!!data));
+      .then(({data}: any)=>setFollowing(!!data));
   },[me?.id,profile?.id]);
 
   const toggleFollow=async()=>{

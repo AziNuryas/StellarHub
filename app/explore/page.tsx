@@ -135,20 +135,17 @@ export default function ExplorePage() {
     }
 
     try {
-      const content = `🚀 **Berita Luar Angkasa Baru!**\n\n**${item.title}**\n\n${item.summary}\n\nSumber: ${item.url}`
-      const { error } = await supabase.from('posts').insert({
-        content,
-        user_id: user.id,
-        title: item.title,
-        image_url: item.image_url,
-        category: 'News'
-      })
+      const cleanTitle = item.title.replace(/\*/g, '');
+      const content = `Space News: ${cleanTitle}\n\n${item.summary}\n\nSource: ${item.url}`;
+      
+      const params = new URLSearchParams();
+      params.set('share_text', content);
+      if (item.image_url) params.set('share_image', item.image_url);
 
-      if (error) throw error
-      toast.success('Berhasil dibagikan ke feed! ✨')
+      router.push(`/feed?${params.toString()}`);
     } catch (error: any) {
       console.error('Error sharing to feed:', error)
-      toast.error('Gagal membagikan ke feed')
+      toast.error('Gagal menyiapkan teks bagikan')
     }
   }
 

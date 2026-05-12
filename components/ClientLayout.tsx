@@ -22,6 +22,12 @@ export default function ClientLayout({
 
 
 
+  useEffect(() => {
+    if (!loading && !user && !isPublicPath) {
+      window.location.href = '/login'
+    }
+  }, [loading, user, isPublicPath])
+
   if (loading && !isPublicPath) {
     return (
       <div style={{
@@ -37,6 +43,10 @@ export default function ClientLayout({
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
+  }
+
+  if (!loading && !user && !isPublicPath) {
+    return null
   }
 
   return (

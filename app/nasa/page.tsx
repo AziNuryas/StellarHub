@@ -33,7 +33,7 @@ interface APODItem {
 ══════════════════════════════════════════════ */
 const NASA_KEY = process.env.NEXT_PUBLIC_NASA_API_KEY || 'DEMO_KEY'
 const APOD_START_DATE = '1995-06-16'
-const ITEMS_PER_PAGE = 12
+const ITEMS_PER_PAGE = 6
 
 function formatDate(d: string) {
   try {
@@ -89,28 +89,21 @@ export default function NasaPage() {
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, isSharing: true } : it))
 
     try {
-      const content = `🌌 **${item.title}**\n\n${item.translatedExplanation || item.explanation}\n\n📅 ${formatDate(item.date)}${item.copyright ? ` · © ${item.copyright}` : ''}\n🔗 Sumber: NASA Astronomy Picture of the Day`
-      const imgUrl = item.media_type === 'image' ? (item.hdurl || item.url) : (item.thumbnail_url || null)
+      // Clean, professional format without emojis or markdown stars
+      const cleanTitle = item.title.replace(/\*/g, '');
+      let content = `NASA APOD: ${cleanTitle}\n\n${item.translatedExplanation || item.explanation}`;
+      if (item.copyright) content += `\n\n© ${item.copyright}`;
+      
+      const imgUrl = item.media_type === 'image' ? (item.hdurl || item.url) : (item.thumbnail_url || null);
 
-      const { data: post, error: postError } = await supabase.from('posts').insert({
-        content,
-        user_id: user.id,
-        title: `🌌 NASA APOD: ${item.title}`,
-        image_url: imgUrl,
-      }).select().single()
+      const params = new URLSearchParams();
+      params.set('share_text', content);
+      if (imgUrl) params.set('share_image', imgUrl);
 
-      if (postError) throw postError
-
-      if (imgUrl && post) {
-        await supabase.from('post_images').insert({ post_id: post.id, url: imgUrl, order_index: 0 })
-      }
-
-      toast.success('Berhasil dibagikan ke Feed! 🚀', {
-        action: { label: 'Lihat Feed', onClick: () => router.push('/feed') },
-      })
+      router.push(`/feed?${params.toString()}`);
     } catch (e: any) {
       console.error('Error sharing APOD:', e)
-      toast.error('Gagal membagikan. Silakan coba lagi.')
+      toast.error('Gagal menyiapkan teks bagikan.')
     } finally {
       setItems(prev => prev.map((it, i) => i === idx ? { ...it, isSharing: false } : it))
     }

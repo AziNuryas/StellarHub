@@ -179,7 +179,7 @@ export default function NotificationsPage() {
       .eq('user_id', uid)
       .order('created_at', { ascending: false })
       .limit(100);
-    if (data) setNotifs(data.map(item => ({
+    if (data) setNotifs(data.map((item: any) => ({
       ...item,
       actor: Array.isArray(item.actor) ? item.actor[0] ?? null : item.actor ?? null,
     })) as Notif[]);
@@ -189,7 +189,7 @@ export default function NotificationsPage() {
 
   /* ── init + realtime ── */
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user } }: any) => {
       if (!user) return;
       setUser(user);
       load(user.id);
@@ -199,7 +199,7 @@ export default function NotificationsPage() {
         .on('postgres_changes', {
           event: 'INSERT', schema: 'public', table: 'notifications',
           filter: `user_id=eq.${user.id}`,
-        }, async (p) => {
+        }, async (p: any) => {
           let n = p.new as Notif;
           if ((p.new as any).actor_id) {
             const { data: a } = await supabase.from('profiles')
@@ -211,13 +211,13 @@ export default function NotificationsPage() {
         .on('postgres_changes', {
           event: 'UPDATE', schema: 'public', table: 'notifications',
           filter: `user_id=eq.${user.id}`,
-        }, (p) => {
+        }, (p: any) => {
           setNotifs(prev => prev.map(n => n.id === p.new.id ? { ...n, ...p.new as Notif } : n));
         })
         .on('postgres_changes', {
           event: 'DELETE', schema: 'public', table: 'notifications',
           filter: `user_id=eq.${user.id}`,
-        }, (p) => {
+        }, (p: any) => {
           setNotifs(prev => prev.filter(n => n.id !== p.old.id));
         })
         .subscribe();

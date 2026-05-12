@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: string, session: any) => {
         console.log('Auth event:', event)
         
         if (!mounted) return
@@ -186,9 +186,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await supabase.auth.signOut({ scope: 'global' })
+      // Force timeout on signOut to guarantee it never hangs the UI
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'global' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Logout timeout')), 3000))
+      ]);
     } catch (e) {
-      console.error('Logout error:', e)
+      console.error('Logout error/timeout:', e)
     } finally {
       clearAllAuthStorage()
       setUser(null)
