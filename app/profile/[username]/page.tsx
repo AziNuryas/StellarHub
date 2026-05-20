@@ -270,7 +270,9 @@ export default function UserProfilePage({ params: paramsPromise }: { params: Pro
 
   const isOwn = me?.id === profile?.id;
 
-  useEffect(() => { load(); }, [params.username]);
+  const decodedUsername = decodeURIComponent(params.username);
+
+  useEffect(() => { load(); }, [decodedUsername]);
 
   const load = async () => {
     setLoading(true);
@@ -279,7 +281,7 @@ export default function UserProfilePage({ params: paramsPromise }: { params: Pro
       setMe(user);
 
       const { data: prof, error } = await supabase.from('profiles')
-        .select('*').eq('username', params.username).single();
+        .select('*').eq('username', decodedUsername).single();
       if (error || !prof) { setProfile(null); return; }
       setProfile(prof);
 
@@ -362,7 +364,7 @@ export default function UserProfilePage({ params: paramsPromise }: { params: Pro
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 56, marginBottom: 16 }}>👤</div>
         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#e2e8f0', fontFamily: "'Archivo Black',sans-serif", marginBottom: 8 }}>User tidak ditemukan</h2>
-        <p style={{ color: 'rgba(100,116,139,.6)', marginBottom: 20 }}>@{params.username} tidak ada</p>
+        <p style={{ color: 'rgba(100,116,139,.6)', marginBottom: 20 }}>@{decodedUsername} tidak ada</p>
         <Link href="/feed" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#818cf8', textDecoration: 'none', fontWeight: 600, fontSize: 14 }}>
           <ArrowLeft style={{ width: 14, height: 14 }} /> Kembali ke Feed
         </Link>
