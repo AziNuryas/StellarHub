@@ -6,6 +6,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import ClientLayout from '@/components/ClientLayout'
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   title: {
     default: "StellarHub | Cosmic Community",
     template: "%s | StellarHub"
